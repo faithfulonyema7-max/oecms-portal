@@ -235,6 +235,7 @@ let DB = {
   students: [],
   paid: {},
   questions: {},
+  questionBank: {},
   teacherPassword: "",
   attempts: {},
   manualScores: {},
@@ -270,6 +271,7 @@ async function boot() {
   DB.students = await getData('students', []);
   DB.paid = await getData('paid', {});
   DB.questions = await getData('questions', {});
+  DB.questionBank = await getData('questionBank', {});
   DB.teacherPassword = await getData('teacherPassword', 'oecms-teacher-2026');
   DB.attempts = await getData('attempts', {});
   DB.manualScores = await getData('manualScores', {});
@@ -823,7 +825,7 @@ function viewTeacher() {
   }
   const subj = DB.subjects.find(s => s.id === state.teacherSubjectId);
   const tab = state.teachTab || 'scheme';
-  const tabs = [['scheme', 'Scheme of Work'], ['testq', 'Test Questions (15)'], ['examq', 'Exam Questions (40)'], ['marks', 'Enter 1st Test & Theory Marks']];
+  const tabs = [['scheme', 'Scheme of Work'], ['bank', 'Question Bank'], ['testq', 'Test Questions (15)'], ['examq', 'Exam Questions (40)'], ['marks', 'Enter 1st Test & Theory Marks']];
   return `
   <div class="dash">
     <div class="row spread">
@@ -839,6 +841,7 @@ function teachTab(t) { state.teachTab = t; render(); }
 
 function teacherPanel(tab, subj) {
   if (tab === 'scheme') return teacherScheme(subj);
+  if (tab === 'bank') return teacherBank(subj);
   if (tab === 'testq') return teacherQuestions(subj, 'test');
   if (tab === 'examq') return teacherQuestions(subj, 'exam');
   if (tab === 'marks') return teacherMarks(subj);
@@ -860,6 +863,76 @@ function saveScheme(id) {
   const s = DB.subjects.find(x => x.id === id); if (!s) return;
   s.scheme = document.getElementById('schemeText').value;
   setData('subjects', DB.subjects).then(() => flash('Scheme of work saved.', 'success'));
+}
+
+/* ---------- Question Bank: teachers paste a large pool of ready-made
+   questions here (no AI, no billing needed). "Generate from Bank" then
+   randomly draws the required count (15 for test, 40 for exam) from it,
+   optionally filtered by topic. ---------- */
+function teacherBank(subj) {
+  const bank = DB.questionBank[subj.id] || [];
+  const topics = Array.from(new Set(bank.map(q => q.topic).filter(Boolean)));
+  return `
+  <p class="hint">Paste a large pool of ready-made questions here (50–100+ is great) — no AI or billing needed. When you're ready to build a Test or Exam, use "Generate from Bank" on those tabs to randomly pull the required number from this pool.</p>
+  <p class="hint"><b>Format</b> — one question per block, blank line between blocks:</p>
+  <pre style="background:#fbfaf6;border:1px solid var(--line);border-radius:8px;padding:10px;font-size:.8rem;overflow:auto;">Topic: Cell Structure
+1. What is the powerhouse of the cell?
+A) Nucleus
+B) Mitochondria
+C) Ribosome
+D) Golgi body
+Answer: B
+
+Topic: Photosynthesis
+2. Photosynthesis mainly occurs in the...
+A) Roots
+B) Stem
+C) Leaves
+D) Flowers
+Answer: C</pre>
+  <p class="hint">"Topic:" is optional but lets you later generate questions focused on specific topics.</p>
+  <textarea id="bankPaste" rows="10" placeholder="Paste your question bank here in the format above..."></textarea>
+  <button class="btn primary" onclick="saveBankAppend('${subj.id}')">Add to Bank</button>
+  <button class="btn ghost" onclick="clearBank('${subj.id}')">Clear Whole Bank</button>
+  <p class="hint" style="margin-top:14px;"><b>${bank.length}</b> question(s) currently in the bank for this subject${topics.length ? ' — topics found: ' + topics.map(esc).join(', ') : ''}.</p>`;
+}
+function parseQuestionBank(text) {
+  const blocks = text.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+  const out = [];
+  blocks.forEach(block => {
+    const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+    let topic = '', qText = '', correct = 'A';
+    const opts = { A: '', B: '', C: '', D: '' };
+    lines.forEach(line => {
+      let m;
+      if ((m = line.match(/^Topic:\s*(.+)$/i))) { topic = m[1]; return; }
+      if ((m = line.match(/^Answer:\s*([A-D])/i))) { correct = m[1].toUpperCase(); return; }
+      if ((m = line.match(/^([A-D])[\)\.]\s*(.+)$/i))) { opts[m[1].toUpperCase()] = m[2]; return; }
+      const qm = line.match(/^(?:Q\d*[:.]|\d+[.)])\s*(.+)$/i);
+      if (qm) { qText = qText ? qText + ' ' + qm[1] : qm[1]; return; }
+      qText = qText ? qText + ' ' + line : line;
+    });
+    if (qText && opts.A && opts.B && opts.C && opts.D) {
+      out.push({ q: qText, A: opts.A, B: opts.B, C: opts.C, D: opts.D, correct, topic });
+    }
+  });
+  return out;
+}
+function saveBankAppend(subjectId) {
+  const text = document.getElementById('bankPaste').value;
+  const parsed = parseQuestionBank(text);
+  if (!parsed.length) { flash('Could not find any properly formatted questions in that text. Check the format example above.', 'error'); return; }
+  if (!DB.questionBank[subjectId]) DB.questionBank[subjectId] = [];
+  DB.questionBank[subjectId] = DB.questionBank[subjectId].concat(parsed);
+  setData('questionBank', DB.questionBank).then(() => {
+    flash(`Added ${parsed.length} question(s) to the bank.`, 'success');
+    render();
+  });
+}
+function clearBank(subjectId) {
+  if (!confirm('Clear the entire question bank for this subject? This cannot be undone.')) return;
+  DB.questionBank[subjectId] = [];
+  setData('questionBank', DB.questionBank).then(() => { flash('Bank cleared.', 'success'); render(); });
 }
 
 function teacherQuestions(subj, kind) {
@@ -884,10 +957,15 @@ function teacherQuestions(subj, kind) {
     </div>`);
   }
   return `
-  <div class="row spread">
+  <div class="row wrap spread">
     <p class="hint" style="margin:0">Fill in exactly ${count} questions, options A&ndash;D, and mark the correct option.</p>
-    <button class="btn ghost small" onclick="aiGenerate('${subj.id}','${kind}', ${count})" ${state.aiBusy ? 'disabled' : ''}>${state.aiBusy ? 'Generating…' : 'Generate from Scheme (AI)'}</button>
+    <div class="row" style="margin:0">
+      <input id="topicFocus_${kind}" placeholder="Focus topics, comma-separated (optional)" style="min-width:220px"/>
+      <button class="btn ghost small" onclick="generateFromBank('${subj.id}','${kind}', ${count})">Generate from Bank</button>
+      <button class="btn ghost small" onclick="aiGenerate('${subj.id}','${kind}', ${count})" ${state.aiBusy ? 'disabled' : ''}>${state.aiBusy ? 'Generating…' : 'Generate from Scheme (AI)'}</button>
+    </div>
   </div>
+  <p class="hint">"Generate from Bank" is free and picks randomly from the Question Bank tab. "Generate from Scheme (AI)" needs Anthropic billing set up on the server. Either way, review the filled-in questions below before saving.</p>
   ${rows.join('')}
   <button class="btn primary" onclick="saveQuestions('${subj.id}','${kind}', ${count})">Save ${kind === 'test' ? 'Test' : 'Exam'} Questions</button>`;
 }
@@ -908,18 +986,52 @@ function saveQuestions(subjectId, kind, count) {
   setData('questions', DB.questions).then(() => flash('Questions saved.', 'success'));
 }
 
+function generateFromBank(subjectId, kind, count) {
+  const bank = DB.questionBank[subjectId] || [];
+  const topicsEl = document.getElementById(`topicFocus_${kind}`);
+  const topicsRaw = topicsEl ? topicsEl.value.trim() : '';
+  let pool = bank;
+  if (topicsRaw) {
+    const wanted = topicsRaw.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+    pool = bank.filter(q => q.topic && wanted.some(t => q.topic.toLowerCase().includes(t)));
+    if (pool.length < count) {
+      flash(`Only ${pool.length} bank question(s) match those topics — need ${count}. Add more to the bank, tag more questions with those topics, or broaden your topic list.`, 'error');
+      return;
+    }
+  } else if (pool.length < count) {
+    flash(`The question bank only has ${pool.length} question(s) — need at least ${count}. Add more on the Question Bank tab first.`, 'error');
+    return;
+  }
+  const picked = shuffle(pool).slice(0, count);
+  for (let i = 0; i < count; i++) {
+    const q = picked[i] || { q: '', A: '', B: '', C: '', D: '', correct: 'A' };
+    const el = id => document.getElementById(id);
+    if (el(`q_${kind}_${i}_q`)) {
+      el(`q_${kind}_${i}_q`).value = q.q || '';
+      el(`q_${kind}_${i}_A`).value = q.A || '';
+      el(`q_${kind}_${i}_B`).value = q.B || '';
+      el(`q_${kind}_${i}_C`).value = q.C || '';
+      el(`q_${kind}_${i}_D`).value = q.D || '';
+      el(`q_${kind}_${i}_correct`).value = (q.correct || 'A').toUpperCase();
+    }
+  }
+  flash(`Picked ${count} question(s) from the bank — review below, then Save.`, 'success');
+}
+
 async function aiGenerate(subjectId, kind, count) {
   const subj = DB.subjects.find(s => s.id === subjectId);
   if (!subj || !subj.scheme || !subj.scheme.trim()) {
     flash('Please save a scheme of work for this subject first.', 'error');
     return;
   }
+  const topicsEl = document.getElementById(`topicFocus_${kind}`);
+  const topics = topicsEl ? topicsEl.value.trim() : '';
   state.aiBusy = true; render();
   try {
     const response = await fetch("/api/generate-questions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ subjectName: subj.name, scheme: subj.scheme, kind, count })
+      body: JSON.stringify({ subjectName: subj.name, scheme: subj.scheme, kind, count, topics })
     });
     const data = await response.json();
     if (data.error) throw new Error(data.error);
@@ -1052,7 +1164,10 @@ function startRun(mode) {
   const durMin = mode === 'test' ? DB.config.testDurationMin : DB.config.examDurationMin;
   if (bank.length < count) { flash('Questions are not fully set up yet.', 'error'); return; }
   state.runMode = mode;
-  state.runQuestions = shuffle(bank.slice(0, count).map((q, i) => Object.assign({ idx: i }, q)));
+  // Each student session gets its own randomised question order AND its own
+  // randomised A/B/C/D option order, so no two students see the same
+  // question-number-to-option-letter layout on screen at the same time.
+  state.runQuestions = shuffle(bank.slice(0, count).map((q, i) => Object.assign({ idx: i }, q))).map(shuffleOptions);
   state.runAnswers = {};
   state.runSecondsLeft = durMin * 60;
   state.warnCount = 0;
@@ -1066,6 +1181,16 @@ function shuffle(arr) {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+}
+function shuffleOptions(q) {
+  const letters = ['A', 'B', 'C', 'D'];
+  const pairs = shuffle(letters.map(l => ({ text: q[l], isCorrect: l === q.correct })));
+  const out = Object.assign({}, q);
+  pairs.forEach((p, i) => {
+    out[letters[i]] = p.text;
+    if (p.isCorrect) out.correct = letters[i];
+  });
+  return out;
 }
 function tickTimer() {
   state.runSecondsLeft--;
@@ -1253,3 +1378,5 @@ boot();
 </script>
 </body>
 </html>
+
+add question bank feature
