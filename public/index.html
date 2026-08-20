@@ -6,12 +6,13 @@
 <title>OECMS CBT Portal</title>
 <style>
 :root {
-  --teal: #0f9e94;
-  --teal-dark: #0a716a;
-  --navy: #142850;
+  --teal: #16264f;        /* primary accent -> deep navy (was teal) */
+  --teal-dark: #0a1730;   /* darker navy for hover/active */
+  --navy: #12234c;        /* heading text on light cards */
   --red: #c1272d;
-  --gold: #e0a72e;
-  --cream: #f6f4ee;
+  --gold: #d4af37;        /* accent gold */
+  --gold-dark: #b8952e;
+  --cream: #0a1730;       /* page background -> dark navy (was cream) */
   --ink: #1c2430;
   --line: #e1ddd0;
   --ok: #1a7a3c;
@@ -25,31 +26,39 @@ body {
   color: var(--ink);
   min-height: 100vh;
 }
-#app { max-width: 1000px; margin: 0 auto; padding: 0 16px 60px; }
+#app { max-width: 1000px; margin: 0 auto; padding: 0 0 60px; }
 
 .topbar {
-  display: flex; align-items: center; gap: 14px;
-  padding: 16px 8px 14px; border-bottom: 4px solid var(--teal);
-  margin-bottom: 18px;
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px;
+  padding: 30px 16px 34px; margin-bottom: 22px;
+  background: linear-gradient(180deg, #12234c 0%, #0a1730 100%);
+  border-bottom: 4px solid var(--gold);
 }
-.topbar-logo { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
-.topbar-text { flex: 1; }
-.topbar-title { font-size: 1.15rem; font-weight: 700; color: var(--navy); letter-spacing: .2px; }
-.topbar-sub { font-size: .8rem; color: var(--teal-dark); font-weight: 600; }
+.topbar-logo { width: 78px; height: 78px; border-radius: 50%; object-fit: cover; box-shadow: 0 4px 18px rgba(0,0,0,.35); }
+.topbar-text { display: flex; flex-direction: column; align-items: center; }
+.topbar-title { font-size: 1.5rem; font-weight: 800; color: #fff; letter-spacing: .3px; text-transform: uppercase; }
+.topbar-sub { font-size: .92rem; color: var(--gold); font-weight: 700; margin-top: 4px; }
+.topbar-meta { font-size: .8rem; color: #b9c2d6; margin-top: 2px; }
+.topbar .btn.ghost { position: absolute; left: 16px; top: 16px; color: #fff; border-color: rgba(255,255,255,.5); }
+.topbar { position: relative; }
+
+#app > .topbar + .flash, #app > .flash { margin: 0 16px 14px; }
+#app > *:not(.topbar) { padding-left: 16px; padding-right: 16px; }
+#app > .topbar { padding-left: 16px; padding-right: 16px; }
 
 .hero { text-align: center; padding: 18px 0 6px; }
-.hero-logo { width: 110px; height: 110px; border-radius: 50%; box-shadow: 0 4px 18px rgba(20,40,80,.18); }
-.hero h1 { color: var(--navy); margin: 14px 0 4px; font-size: 1.6rem; }
-.hero-sub { color: #566; margin-bottom: 8px; }
+.hero-logo { width: 110px; height: 110px; border-radius: 50%; box-shadow: 0 4px 18px rgba(0,0,0,.35); }
+.hero h1 { color: #fff; margin: 14px 0 4px; font-size: 1.6rem; }
+.hero-sub { color: var(--gold); margin-bottom: 8px; font-weight: 600; }
 
 .portal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; margin-top: 18px; }
 .portal-card {
   background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 20px 18px;
   cursor: pointer; transition: transform .12s, box-shadow .12s; text-align: left;
 }
-.portal-card:hover { transform: translateY(-3px); box-shadow: 0 10px 22px rgba(20,40,80,.12); border-color: var(--teal); }
+.portal-card:hover { transform: translateY(-3px); box-shadow: 0 10px 22px rgba(0,0,0,.35); border-color: var(--gold); }
 .portal-icon {
-  width: 40px; height: 40px; border-radius: 10px; background: var(--teal); color: #fff;
+  width: 40px; height: 40px; border-radius: 10px; background: var(--navy); color: var(--gold);
   display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem; margin-bottom: 10px;
 }
 .portal-card h3 { margin: 0 0 4px; color: var(--navy); }
@@ -58,6 +67,10 @@ body {
 .card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 22px; margin-top: 10px; }
 .card.narrow { max-width: 420px; margin: 20px auto; }
 .card h2 { color: var(--navy); margin-top: 0; }
+
+.stepbox { background: #fff; border-radius: 14px; padding: 22px; margin-top: 16px; }
+.stepbox h2 { color: var(--navy); margin: 0 0 4px; font-size: 1.05rem; letter-spacing: .3px; text-transform: uppercase; border-bottom: 3px solid var(--gold); padding-bottom: 10px; }
+.stepbox-body { margin-top: 14px; }
 
 label { display: block; font-size: .82rem; font-weight: 700; color: var(--navy); margin: 12px 0 4px; }
 input, select, textarea {
@@ -71,12 +84,12 @@ textarea { resize: vertical; }
   background: var(--navy); color: #fff; font-weight: 700; cursor: pointer; font-size: .9rem;
   margin-top: 12px; margin-right: 8px;
 }
-.btn.primary { background: var(--teal); }
+.btn.primary { background: var(--navy); color: var(--gold); }
 .btn.primary:hover { background: var(--teal-dark); }
 .btn.danger { background: var(--red); }
 .btn.ghost { background: transparent; color: var(--navy); border: 1px solid var(--navy); }
 .btn.small { padding: 5px 10px; font-size: .78rem; margin-top: 0; }
-.btn.big { font-size: 1.05rem; padding: 13px 26px; }
+.btn.big { font-size: 1.05rem; padding: 13px 26px; letter-spacing: .4px; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 
 .row { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
@@ -85,22 +98,22 @@ textarea { resize: vertical; }
 .row > input, .row > select, .row > textarea { width: auto; flex: 1; }
 
 .dash { margin-top: 8px; }
-.tabbar { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 2px solid var(--line); margin-bottom: 16px; }
+.tabbar { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 2px solid var(--line); margin-bottom: 16px; background: #fff; border-radius: 14px 14px 0 0; padding: 6px 6px 0; }
 .tabbtn {
   background: none; border: none; padding: 9px 14px; font-weight: 700; color: #667;
   cursor: pointer; border-bottom: 3px solid transparent; font-size: .88rem;
 }
-.tabbtn.active { color: var(--teal-dark); border-bottom-color: var(--teal); }
-.tabpanel { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+.tabbtn.active { color: var(--navy); border-bottom-color: var(--gold); }
+.tabpanel { background: #fff; border: 1px solid var(--line); border-radius: 0 0 14px 14px; padding: 20px; }
 
 .tbl { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: .88rem; }
 .tbl th, .tbl td { border: 1px solid var(--line); padding: 7px 9px; text-align: left; }
-.tbl th { background: #eef6f4; color: var(--navy); }
+.tbl th { background: var(--navy); color: #fff; }
 .tbl.small td, .tbl.small th { padding: 5px 7px; font-size: .82rem; }
 .tbl input, .tbl select { padding: 5px 7px; font-size: .85rem; }
 
 .chiplist { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.chip { background: #eef6f4; border: 1px solid var(--teal); color: var(--teal-dark); padding: 5px 10px; border-radius: 20px; font-size: .84rem; }
+.chip { background: #fff8e6; border: 1px solid var(--gold); color: var(--gold-dark); padding: 5px 10px; border-radius: 20px; font-size: .84rem; }
 .chip a { color: var(--red); text-decoration: none; margin-left: 6px; font-weight: 800; }
 
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 18px; margin-top: 10px; }
@@ -115,7 +128,7 @@ textarea { resize: vertical; }
 .flash.error { background: #fbe7e6; color: var(--err); border: 1px solid #f0bdb9; }
 .flash.info { background: #eaf2fb; color: #1b4b8a; border: 1px solid #c6dcf5; }
 
-.footer { text-align: center; color: #8c9490; font-size: .76rem; margin-top: 40px; padding-top: 14px; border-top: 1px solid var(--line); }
+.footer { text-align: center; color: #8695b3; font-size: .76rem; margin-top: 40px; padding: 14px 16px 0; border-top: 1px solid #22345c; }
 
 .noticebox {
   background: #fff7e6; border: 1px solid var(--gold); color: #6b4e00; padding: 12px 14px;
@@ -130,14 +143,25 @@ textarea { resize: vertical; }
 .qview-text { font-weight: 600; margin-bottom: 8px; }
 .qview-opts { display: grid; gap: 6px; }
 .opt { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; font-size: .9rem; }
-.opt.sel { border-color: var(--teal); background: #eef6f4; }
+.opt.sel { border-color: var(--gold); background: #fff8e6; }
 .opt input { width: auto; }
 
 .qedit { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 10px; background: #fbfaf6; }
-.qnum { font-weight: 800; color: var(--teal-dark); margin-bottom: 6px; }
+.qnum { font-weight: 800; color: var(--navy); margin-bottom: 6px; }
 .qopts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
 @media (max-width: 640px) { .qopts { grid-template-columns: 1fr; } }
 .qedit select { width: 90px; }
+
+/* ---------- step-pattern selector cards (class/subject pick) ---------- */
+.pickgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-top: 6px; }
+.pickcard {
+  background: #f4f6fb; border: 1px solid var(--line); border-radius: 10px; padding: 18px 14px;
+  text-align: center; cursor: pointer; transition: all .12s;
+}
+.pickcard:hover { border-color: var(--gold); background: #fff8e6; }
+.pickcard.sel { border-color: var(--gold); background: #fff8e6; box-shadow: 0 0 0 2px var(--gold) inset; }
+.pickcard-title { font-weight: 800; color: var(--navy); font-size: 1.05rem; }
+.pickcard-sub { color: #667; font-size: .82rem; margin-top: 4px; }
 
 /* ---------- printable result sheet ---------- */
 .result-sheet {
@@ -148,11 +172,11 @@ textarea { resize: vertical; }
   position: absolute; top: 50%; left: 50%; width: 60%; opacity: .07;
   transform: translate(-50%, -50%); pointer-events: none;
 }
-.result-header { display: flex; align-items: center; gap: 16px; border-bottom: 2px solid var(--teal); padding-bottom: 12px; position: relative; }
+.result-header { display: flex; align-items: center; gap: 16px; border-bottom: 2px solid var(--gold); padding-bottom: 12px; position: relative; }
 .result-logo { width: 70px; height: 70px; border-radius: 50%; }
 .result-school { font-size: 1.25rem; font-weight: 800; color: var(--navy); }
 .result-addr { font-size: .82rem; color: #556; }
-.result-title { text-align: center; color: var(--teal-dark); margin: 14px 0; position: relative; }
+.result-title { text-align: center; color: var(--navy); margin: 14px 0; position: relative; }
 .result-meta { position: relative; font-size: .9rem; margin-bottom: 6px; }
 .result-tbl { position: relative; }
 .result-summary { position: relative; font-size: 1rem; margin-top: 10px; }
@@ -200,6 +224,7 @@ async function setData(key, value) {
     return false;
   }
 }
+
 function uid(prefix) {
   return (prefix || 'id') + '_' + Math.random().toString(36).slice(2, 9);
 }
@@ -239,7 +264,10 @@ let DB = {
   teacherPassword: "",
   attempts: {},
   manualScores: {},
-  resultAuth: {}
+  resultAuth: {},
+  entranceConfig: null,
+  entranceCandidates: [],
+  entranceAttempts: {}
 };
 
 let state = {
@@ -260,7 +288,12 @@ let state = {
   resultsReg: null,
   msg: null,
   msgType: 'info',
-  aiBusy: false
+  aiBusy: false,
+  bankEdit: null,
+  runContext: 'student',   // 'student' | 'entrance'
+  entranceCandidateId: null,
+  mgmtEntranceCandName: '',
+  mgmtEntranceCandClass: ''
 };
 
 /* ---------- boot ---------- */
@@ -276,6 +309,9 @@ async function boot() {
   DB.attempts = await getData('attempts', {});
   DB.manualScores = await getData('manualScores', {});
   DB.resultAuth = await getData('resultAuth', {});
+  DB.entranceConfig = await getData('entranceConfig', { subjects: [], qCountPerSubject: 15, durationMin: 20, password: 'oecms-entrance-2026' });
+  DB.entranceCandidates = await getData('entranceCandidates', []);
+  DB.entranceAttempts = await getData('entranceAttempts', {});
   render();
 }
 
@@ -315,22 +351,28 @@ function getManual(reg, subjectId) {
 }
 
 // Returns null if not fully scored yet (missing components), else full breakdown
+function secondTestMode(subjectId) {
+  const s = DB.subjects.find(x => x.id === subjectId);
+  return (s && s.secondTestMode === 'manual') ? 'manual' : 'cbt';
+}
 function subjectBreakdown(reg, subjectId) {
   const a = getAttempt(reg, subjectId);
   const m = getManual(reg, subjectId);
   const c = DB.config;
-  const hasTest = typeof a.testScore === 'number';
+  const mode2 = secondTestMode(subjectId);
+  const hasTest = mode2 === 'manual' ? (typeof m.test2 === 'number') : (typeof a.testScore === 'number');
+  const cbtTestVal = mode2 === 'manual' ? m.test2 : a.testScore;
   const hasExam = typeof a.examScore === 'number';
   const hasT1 = typeof m.test1 === 'number';
   const hasTheory = typeof m.theory === 'number';
   const complete = hasTest && hasExam && hasT1 && hasTheory;
-  const total = (hasT1 ? m.test1 : 0) + (hasTest ? a.testScore : 0) +
+  const total = (hasT1 ? m.test1 : 0) + (hasTest ? cbtTestVal : 0) +
                 (hasExam ? a.examScore : 0) + (hasTheory ? m.theory : 0);
   const max = subjectMaxTotal();
   const pct = max ? (total / max) * 100 : 0;
   return {
     test1: hasT1 ? m.test1 : null, test1Max: c.firstTestMax,
-    cbtTest: hasTest ? a.testScore : null, cbtTestMax: c.cbtTestMax,
+    cbtTest: hasTest ? cbtTestVal : null, cbtTestMax: c.cbtTestMax, cbtTestMode: mode2,
     cbtExam: hasExam ? a.examScore : null, cbtExamMax: c.cbtExamMax,
     theory: hasTheory ? m.theory : null, theoryMax: c.theoryMax,
     total, max, pct: Math.round(pct * 10) / 10,
@@ -388,12 +430,13 @@ function render() {
 function header() {
   return `
   <div class="topbar">
+    ${state.view !== 'home' ? `<button class="btn ghost small" onclick="goHome()">&larr; Home</button>` : ''}
     <img src="${LOGO}" class="topbar-logo" alt="OECMS logo"/>
     <div class="topbar-text">
       <div class="topbar-title">${esc(DB.config.schoolName)}</div>
-      <div class="topbar-sub">CBT Test &amp; Examination Portal &middot; ${esc(DB.config.session)} &middot; ${esc(DB.config.term)}</div>
+      <div class="topbar-sub">Computer-Based Test (CBT) Examination Portal</div>
+      <div class="topbar-meta">${esc(DB.config.term)} &nbsp;&bull;&nbsp; ${esc(DB.config.session)} Academic Session</div>
     </div>
-    ${state.view !== 'home' ? `<button class="btn ghost small" onclick="goHome()">&larr; Home</button>` : ''}
   </div>`;
 }
 
@@ -401,13 +444,18 @@ function goHome() {
   state.mgmtAuthed = false;
   state.teacherAuthed = false;
   state.studentReg = null;
+  state.entranceCandidateId = null;
   state.view = 'home';
   render();
 }
 
 function banner() {
-  if (!state.msg) return '';
-  return `<div class="flash ${state.msgType}">${esc(state.msg)}</div>`;
+  let out = '';
+  if (!HAS_CLOUD_STORAGE && state.view === 'home') {
+    out += `<div class="flash info">Running in local mode: all data (students, subjects, scores) is saved in this browser only. Use the same browser/device for management, teaching, and student sessions, or host this file on a shared server for multi-device use.</div>`;
+  }
+  if (state.msg) out += `<div class="flash ${state.msgType}">${esc(state.msg)}</div>`;
+  return out;
 }
 
 function footerBar() {
@@ -426,6 +474,11 @@ function body() {
     case 'student-run': return viewStudentRun();
     case 'results-home': return viewResultsHome();
     case 'results-view': return viewResultsView();
+    case 'entrance-portal': return viewEntrancePortal();
+    case 'entrance-login': return viewEntranceLogin();
+    case 'entrance-dash': return viewEntranceDash();
+    case 'entrance-result-login': return viewEntranceResultLogin();
+    case 'entrance-result-view': return viewEntranceResultView();
     default: return viewHome();
   }
 }
@@ -464,6 +517,11 @@ function viewHome() {
       <h3>Check Result</h3>
       <p>Students check compiled results with a registration number.</p>
     </div>
+    <div class="portal-card" onclick="go('entrance-portal')">
+      <div class="portal-icon">E</div>
+      <h3>Entrance Examination</h3>
+      <p>New intake candidates sit the entrance exam and check results.</p>
+    </div>
   </div>`;
 }
 
@@ -494,7 +552,7 @@ function viewMgmt() {
   const tabs = [
     ['subjects', 'Subjects'], ['classes', 'Classes'], ['students', 'Students'],
     ['payments', 'Payments'], ['approvals', 'Scores & Approvals'],
-    ['teacherpass', 'Teacher Access'], ['results', 'All Results'], ['settings', 'Settings']
+    ['teacherpass', 'Teacher Access'], ['entrance', 'Entrance Exam'], ['results', 'All Results'], ['settings', 'Settings']
   ];
   return `
   <div class="dash">
@@ -513,6 +571,7 @@ function mgmtPanel(tab) {
   if (tab === 'payments') return mgmtPayments();
   if (tab === 'approvals') return mgmtApprovals();
   if (tab === 'teacherpass') return mgmtTeacherPass();
+  if (tab === 'entrance') return mgmtEntrance();
   if (tab === 'results') return mgmtResults();
   if (tab === 'settings') return mgmtSettings();
   return '';
@@ -526,17 +585,28 @@ function mgmtSubjects() {
     <button class="btn primary" onclick="addSubject()">Add Subject</button>
   </div>
   <table class="tbl">
-    <tr><th>Name</th><th>CBT Access Password</th><th>Scheme of Work</th><th>Questions</th><th></th></tr>
+    <tr><th>Name</th><th>CBT Access Password</th><th>2nd Test</th><th>Scheme of Work</th><th>Questions</th><th></th></tr>
     ${DB.subjects.map(s => `
       <tr>
         <td><input value="${esc(s.name)}" onchange="renameSubject('${s.id}', this.value)"/></td>
         <td><input value="${esc(s.password || '')}" placeholder="set access password" onchange="setSubjectPassword('${s.id}', this.value)"/></td>
+        <td>
+          <select onchange="setSecondTestMode('${s.id}', this.value)">
+            <option value="cbt" ${(!s.secondTestMode || s.secondTestMode === 'cbt') ? 'selected' : ''}>CBT</option>
+            <option value="manual" ${s.secondTestMode === 'manual' ? 'selected' : ''}>Manual entry</option>
+          </select>
+        </td>
         <td>${(s.scheme || '').length} chars</td>
         <td>Test: ${(DB.questions[s.id] && DB.questions[s.id].test || []).length}/${DB.config.testQCount} &middot; Exam: ${(DB.questions[s.id] && DB.questions[s.id].exam || []).length}/${DB.config.examQCount}</td>
         <td><button class="btn danger small" onclick="deleteSubject('${s.id}')">Delete</button></td>
       </tr>`).join('')}
   </table>
-  <p class="hint">Tip: use the Teacher Portal (or edit here) to paste each subject's scheme of work and set/generate its questions.</p>`;
+  <p class="hint">Tip: use the Teacher Portal (or edit here) to paste each subject's scheme of work and set/generate its questions. "2nd Test" set to Manual means teachers type that mark directly instead of students sitting a computer test for it.</p>`;
+}
+function setSecondTestMode(id, val) {
+  const s = DB.subjects.find(x => x.id === id); if (!s) return;
+  s.secondTestMode = val;
+  setData('subjects', DB.subjects).then(() => flash('2nd Test mode updated.', 'success'));
 }
 function addSubject() {
   const name = document.getElementById('newSubjectName').value.trim();
@@ -731,6 +801,99 @@ function regenTeacherPass() {
   setData('teacherPassword', DB.teacherPassword).then(() => { flash('New teacher password generated.', 'success'); render(); });
 }
 
+/* ===================== ENTRANCE EXAMINATION (Management side) ===================== */
+function mgmtEntrance() {
+  const ec = DB.entranceConfig;
+  const candidates = DB.entranceCandidates;
+  return `
+  <h2>Entrance Examination Setup</h2>
+
+  <h3>1. Subjects covered</h3>
+  <p class="hint">Pick which subjects new intake candidates will be examined on. Teachers set that subject's entrance questions from the Teacher Portal once it's selected here.</p>
+  <div class="chiplist">
+    ${DB.subjects.map(s => `
+      <label class="opt ${ec.subjects.includes(s.id) ? 'sel' : ''}" style="display:inline-flex;width:auto;">
+        <input type="checkbox" ${ec.subjects.includes(s.id) ? 'checked' : ''} onchange="toggleEntranceSubject('${s.id}', this.checked)"/>
+        <span>${esc(s.name)}</span>
+      </label>`).join('') || '<p class="hint">No subjects yet — add some under the Subjects tab first.</p>'}
+  </div>
+
+  <h3 style="margin-top:22px;">2. Settings</h3>
+  <div class="grid2">
+    <div><label>Questions per subject</label><input id="ec_qcount" type="number" value="${ec.qCountPerSubject}"/></div>
+    <div><label>Duration per subject (minutes)</label><input id="ec_dur" type="number" value="${ec.durationMin}"/></div>
+    <div><label>Candidate Access Password</label><input id="ec_pass" value="${esc(ec.password)}"/></div>
+  </div>
+  <button class="btn primary" onclick="saveEntranceConfig()">Save Settings</button>
+
+  <h3 style="margin-top:22px;">3. Register a candidate</h3>
+  <div class="row wrap">
+    <input id="newCandName" placeholder="Candidate full name"/>
+    <select id="newCandClass">${DB.classes.map(c => `<option>${esc(c)}</option>`).join('')}</select>
+    <button class="btn primary" onclick="registerCandidate()">Register &amp; Generate Candidate No.</button>
+  </div>
+
+  <h3 style="margin-top:22px;">4. Candidates &amp; Results</h3>
+  <table class="tbl small">
+    <tr><th>Candidate No.</th><th>Name</th><th>Applying For</th>${ec.subjects.map(id => { const s = DB.subjects.find(x => x.id === id); return s ? `<th>${esc(s.name)}</th>` : ''; }).join('')}<th>Total</th><th></th></tr>
+    ${candidates.map(cand => {
+      const att = DB.entranceAttempts[cand.id] || {};
+      let total = 0, max = 0;
+      const cells = ec.subjects.map(id => {
+        const a = att[id];
+        if (a) { total += a.score; max += a.max; return `<td>${a.score}/${a.max}</td>`; }
+        return `<td>-</td>`;
+      }).join('');
+      return `<tr>
+        <td>${esc(cand.id)}</td><td>${esc(cand.name)}</td><td>${esc(cand.appliedClass)}</td>
+        ${cells}
+        <td><b>${max ? total + '/' + max : '-'}</b></td>
+        <td>
+          <button class="btn small" onclick="viewEntranceResultAsAdmin('${esc(cand.id)}')">View</button>
+          <button class="btn danger small" onclick="deleteCandidate('${esc(cand.id)}')">Delete</button>
+        </td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="99">No candidates registered yet.</td></tr>`}
+  </table>
+  <p class="hint">Candidate Access Password (above) plus their Candidate No. is what a candidate uses to log in and sit the exam.</p>`;
+}
+function toggleEntranceSubject(subjectId, checked) {
+  const ec = DB.entranceConfig;
+  if (checked) { if (!ec.subjects.includes(subjectId)) ec.subjects.push(subjectId); }
+  else { ec.subjects = ec.subjects.filter(id => id !== subjectId); }
+  setData('entranceConfig', ec).then(() => { flash('Entrance subjects updated.', 'success'); render(); });
+}
+function saveEntranceConfig() {
+  const ec = DB.entranceConfig;
+  ec.qCountPerSubject = Number(document.getElementById('ec_qcount').value) || 15;
+  ec.durationMin = Number(document.getElementById('ec_dur').value) || 20;
+  ec.password = document.getElementById('ec_pass').value.trim() || ec.password;
+  setData('entranceConfig', ec).then(() => flash('Entrance exam settings saved.', 'success'));
+}
+function registerCandidate() {
+  const name = document.getElementById('newCandName').value.trim();
+  const appliedClass = document.getElementById('newCandClass').value;
+  if (!name) { flash("Enter the candidate's name.", 'error'); return; }
+  const id = 'ENT-' + Math.floor(1000 + Math.random() * 9000);
+  DB.entranceCandidates.push({ id, name, appliedClass, regAt: new Date().toISOString() });
+  setData('entranceCandidates', DB.entranceCandidates).then(() => {
+    flash(`Registered. Candidate No.: ${id} — give this to the candidate along with the Candidate Access Password.`, 'success');
+    render();
+  });
+}
+function deleteCandidate(id) {
+  if (!confirm('Delete this candidate and their entrance exam record?')) return;
+  DB.entranceCandidates = DB.entranceCandidates.filter(c => c.id !== id);
+  delete DB.entranceAttempts[id];
+  Promise.all([setData('entranceCandidates', DB.entranceCandidates), setData('entranceAttempts', DB.entranceAttempts)])
+    .then(() => render());
+}
+function viewEntranceResultAsAdmin(id) {
+  state.entranceCandidateId = id;
+  state.fromAdmin = true;
+  go('entrance-result-view');
+}
+
 function mgmtResults() {
   return `
   <h2>All Student Results</h2>
@@ -826,6 +989,7 @@ function viewTeacher() {
   const subj = DB.subjects.find(s => s.id === state.teacherSubjectId);
   const tab = state.teachTab || 'scheme';
   const tabs = [['scheme', 'Scheme of Work'], ['bank', 'Question Bank'], ['testq', 'Test Questions (15)'], ['examq', 'Exam Questions (40)'], ['marks', 'Enter 1st Test & Theory Marks']];
+  if (DB.entranceConfig.subjects.includes(subj.id)) tabs.push(['entranceq', `Entrance Exam Questions (${DB.entranceConfig.qCountPerSubject})`]);
   return `
   <div class="dash">
     <div class="row spread">
@@ -844,6 +1008,7 @@ function teacherPanel(tab, subj) {
   if (tab === 'bank') return teacherBank(subj);
   if (tab === 'testq') return teacherQuestions(subj, 'test');
   if (tab === 'examq') return teacherQuestions(subj, 'exam');
+  if (tab === 'entranceq') return teacherQuestions(subj, 'entrance');
   if (tab === 'marks') return teacherMarks(subj);
   return '';
 }
@@ -872,9 +1037,10 @@ function saveScheme(id) {
 function teacherBank(subj) {
   const bank = DB.questionBank[subj.id] || [];
   const topics = Array.from(new Set(bank.map(q => q.topic).filter(Boolean)));
+  const editing = state.bankEdit && state.bankEdit.subjectId === subj.id ? state.bankEdit.index : null;
   return `
-  <p class="hint">Paste a large pool of ready-made questions here (50–100+ is great) — no AI or billing needed. When you're ready to build a Test or Exam, use "Generate from Bank" on those tabs to randomly pull the required number from this pool.</p>
-  <p class="hint"><b>Format</b> — one question per block, blank line between blocks:</p>
+  <p class="hint">Paste a large pool of ready-made questions here (50-100+ is great) -- no AI or billing needed. When you're ready to build a Test or Exam, use "Generate from Bank" on those tabs to randomly pull the required number from this pool.</p>
+  <p class="hint"><b>Format</b> -- one question per block, blank line between blocks:</p>
   <pre style="background:#fbfaf6;border:1px solid var(--line);border-radius:8px;padding:10px;font-size:.8rem;overflow:auto;">Topic: Cell Structure
 1. What is the powerhouse of the cell?
 A) Nucleus
@@ -894,7 +1060,44 @@ Answer: C</pre>
   <textarea id="bankPaste" rows="10" placeholder="Paste your question bank here in the format above..."></textarea>
   <button class="btn primary" onclick="saveBankAppend('${subj.id}')">Add to Bank</button>
   <button class="btn ghost" onclick="clearBank('${subj.id}')">Clear Whole Bank</button>
-  <p class="hint" style="margin-top:14px;"><b>${bank.length}</b> question(s) currently in the bank for this subject${topics.length ? ' — topics found: ' + topics.map(esc).join(', ') : ''}.</p>`;
+  <p class="hint" style="margin-top:14px;"><b>${bank.length}</b> question(s) currently in the bank for this subject${topics.length ? ' -- topics found: ' + topics.map(esc).join(', ') : ''}. Needed: ${DB.config.testQCount} for a Test, ${DB.config.examQCount} for an Exam (per topic filter, if used).</p>
+  <div style="max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:10px;margin-top:10px;">
+  ${bank.length === 0 ? '<p class="hint" style="padding:14px;">No questions in the bank yet.</p>' : bank.map((q, i) => {
+    if (editing === i) {
+      return `
+      <div class="qedit" style="margin:8px;">
+        <div class="qnum">Editing #${i + 1}</div>
+        <input id="bankEdit_topic" placeholder="Topic (optional)" value="${esc(q.topic || '')}" style="margin-bottom:8px;"/>
+        <textarea class="qtext" id="bankEdit_q" rows="2" placeholder="Question text">${esc(q.q)}</textarea>
+        <div class="qopts">
+          <input id="bankEdit_A" placeholder="Option A" value="${esc(q.A)}"/>
+          <input id="bankEdit_B" placeholder="Option B" value="${esc(q.B)}"/>
+          <input id="bankEdit_C" placeholder="Option C" value="${esc(q.C)}"/>
+          <input id="bankEdit_D" placeholder="Option D" value="${esc(q.D)}"/>
+        </div>
+        <select id="bankEdit_correct">
+          ${['A', 'B', 'C', 'D'].map(o => `<option ${o === q.correct ? 'selected' : ''}>${o}</option>`).join('')}
+        </select>
+        <div class="row">
+          <button class="btn primary small" onclick="saveEditBankItem('${subj.id}', ${i})">Save</button>
+          <button class="btn ghost small" onclick="cancelEditBankItem()">Cancel</button>
+        </div>
+      </div>`;
+    }
+    return `
+      <div class="row spread" style="padding:10px 14px;border-bottom:1px solid var(--line);align-items:flex-start;">
+        <div style="flex:1;">
+          <div class="hint" style="margin:0;">${q.topic ? esc(q.topic) + ' -- ' : ''}#${i + 1}</div>
+          <div>${esc(q.q)}</div>
+          <div class="hint" style="margin:4px 0 0;">A) ${esc(q.A)} &nbsp; B) ${esc(q.B)} &nbsp; C) ${esc(q.C)} &nbsp; D) ${esc(q.D)} &nbsp; <b>Correct: ${q.correct}</b></div>
+        </div>
+        <div class="row" style="margin:0;">
+          <button class="btn ghost small" onclick="startEditBankItem('${subj.id}', ${i})">Edit</button>
+          <button class="btn danger small" onclick="deleteBankItem('${subj.id}', ${i})">Delete</button>
+        </div>
+      </div>`;
+  }).join('')}
+  </div>`;
 }
 function parseQuestionBank(text) {
   const blocks = text.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
@@ -934,9 +1137,38 @@ function clearBank(subjectId) {
   DB.questionBank[subjectId] = [];
   setData('questionBank', DB.questionBank).then(() => { flash('Bank cleared.', 'success'); render(); });
 }
+function startEditBankItem(subjectId, index) {
+  state.bankEdit = { subjectId, index };
+  render();
+}
+function cancelEditBankItem() {
+  state.bankEdit = null;
+  render();
+}
+function saveEditBankItem(subjectId, index) {
+  const bank = DB.questionBank[subjectId] || [];
+  if (!bank[index]) return;
+  bank[index] = {
+    topic: document.getElementById('bankEdit_topic').value.trim(),
+    q: document.getElementById('bankEdit_q').value.trim(),
+    A: document.getElementById('bankEdit_A').value.trim(),
+    B: document.getElementById('bankEdit_B').value.trim(),
+    C: document.getElementById('bankEdit_C').value.trim(),
+    D: document.getElementById('bankEdit_D').value.trim(),
+    correct: document.getElementById('bankEdit_correct').value
+  };
+  state.bankEdit = null;
+  setData('questionBank', DB.questionBank).then(() => { flash('Question updated.', 'success'); render(); });
+}
+function deleteBankItem(subjectId, index) {
+  if (!confirm('Delete this question from the bank?')) return;
+  const bank = DB.questionBank[subjectId] || [];
+  bank.splice(index, 1);
+  setData('questionBank', DB.questionBank).then(() => { flash('Question deleted.', 'success'); render(); });
+}
 
 function teacherQuestions(subj, kind) {
-  const count = kind === 'test' ? DB.config.testQCount : DB.config.examQCount;
+  const count = kind === 'test' ? DB.config.testQCount : kind === 'exam' ? DB.config.examQCount : DB.entranceConfig.qCountPerSubject;
   const list = (DB.questions[subj.id] && DB.questions[subj.id][kind]) || [];
   const rows = [];
   for (let i = 0; i < count; i++) {
@@ -966,8 +1198,9 @@ function teacherQuestions(subj, kind) {
     </div>
   </div>
   <p class="hint">"Generate from Bank" is free and picks randomly from the Question Bank tab. "Generate from Scheme (AI)" needs Anthropic billing set up on the server. Either way, review the filled-in questions below before saving.</p>
+  <p class="hint">Bank currently has <b>${(DB.questionBank[subj.id] || []).length}</b> question(s) saved for this subject (see the Question Bank tab). Need at least ${count} to generate here.</p>
   ${rows.join('')}
-  <button class="btn primary" onclick="saveQuestions('${subj.id}','${kind}', ${count})">Save ${kind === 'test' ? 'Test' : 'Exam'} Questions</button>`;
+  <button class="btn primary" onclick="saveQuestions('${subj.id}','${kind}', ${count})">Save ${kind === 'test' ? 'Test' : kind === 'exam' ? 'Exam' : 'Entrance Exam'} Questions</button>`;
 }
 function saveQuestions(subjectId, kind, count) {
   const list = [];
@@ -995,11 +1228,11 @@ function generateFromBank(subjectId, kind, count) {
     const wanted = topicsRaw.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
     pool = bank.filter(q => q.topic && wanted.some(t => q.topic.toLowerCase().includes(t)));
     if (pool.length < count) {
-      flash(`Only ${pool.length} bank question(s) match those topics — need ${count}. Add more to the bank, tag more questions with those topics, or broaden your topic list.`, 'error');
+      flash(`Only ${pool.length} bank question(s) match those topics -- need ${count}. Add more to the bank, tag more questions with those topics, or broaden your topic list.`, 'error');
       return;
     }
   } else if (pool.length < count) {
-    flash(`The question bank only has ${pool.length} question(s) — need at least ${count}. Add more on the Question Bank tab first.`, 'error');
+    flash(`The question bank only has ${pool.length} question(s) -- need at least ${count}. Add more on the Question Bank tab first.`, 'error');
     return;
   }
   const picked = shuffle(pool).slice(0, count);
@@ -1015,7 +1248,7 @@ function generateFromBank(subjectId, kind, count) {
       el(`q_${kind}_${i}_correct`).value = (q.correct || 'A').toUpperCase();
     }
   }
-  flash(`Picked ${count} question(s) from the bank — review below, then Save.`, 'success');
+  flash(`Picked ${count} question(s) from the bank -- review below, then Save.`, 'success');
 }
 
 async function aiGenerate(subjectId, kind, count) {
@@ -1058,14 +1291,17 @@ async function aiGenerate(subjectId, kind, count) {
 }
 
 function teacherMarks(subj) {
+  const manual2 = secondTestMode(subj.id) === 'manual';
   return `
+  ${manual2 ? `<p class="hint">This subject's 2nd Test is set to <b>manual entry</b> (Management &rarr; Subjects). Enter it below alongside 1st Test and Theory.</p>` : ''}
   <table class="tbl small">
-    <tr><th>Reg</th><th>Name</th><th>Class</th><th>1st Test (/${DB.config.firstTestMax})</th><th>Theory (/${DB.config.theoryMax})</th></tr>
+    <tr><th>Reg</th><th>Name</th><th>Class</th><th>1st Test (/${DB.config.firstTestMax})</th>${manual2 ? `<th>2nd Test (/${DB.config.cbtTestMax})</th>` : ''}<th>Theory (/${DB.config.theoryMax})</th></tr>
     ${DB.students.map(s => {
       const m = getManual(s.reg, subj.id);
       return `<tr>
         <td>${esc(s.reg)}</td><td>${esc(s.name)}</td><td>${esc(s.class)}</td>
         <td><input type="number" min="0" max="${DB.config.firstTestMax}" style="width:70px" id="t1_${esc(s.reg)}" value="${m.test1 != null ? m.test1 : ''}"/></td>
+        ${manual2 ? `<td><input type="number" min="0" max="${DB.config.cbtTestMax}" style="width:70px" id="t2_${esc(s.reg)}" value="${m.test2 != null ? m.test2 : ''}"/></td>` : ''}
         <td><input type="number" min="0" max="${DB.config.theoryMax}" style="width:70px" id="th_${esc(s.reg)}" value="${m.theory != null ? m.theory : ''}"/></td>
       </tr>`;
     }).join('')}
@@ -1073,13 +1309,16 @@ function teacherMarks(subj) {
   <button class="btn primary" onclick="saveMarks('${subj.id}')">Save Marks</button>`;
 }
 function saveMarks(subjectId) {
+  const manual2 = secondTestMode(subjectId) === 'manual';
   DB.students.forEach(s => {
     const t1raw = document.getElementById('t1_' + s.reg).value;
+    const t2raw = manual2 ? document.getElementById('t2_' + s.reg).value : '';
     const thraw = document.getElementById('th_' + s.reg).value;
-    if (t1raw === '' && thraw === '') return;
+    if (t1raw === '' && t2raw === '' && thraw === '') return;
     if (!DB.manualScores[s.reg]) DB.manualScores[s.reg] = {};
     if (!DB.manualScores[s.reg][subjectId]) DB.manualScores[s.reg][subjectId] = {};
     if (t1raw !== '') DB.manualScores[s.reg][subjectId].test1 = Math.min(Number(t1raw), DB.config.firstTestMax);
+    if (manual2 && t2raw !== '') DB.manualScores[s.reg][subjectId].test2 = Math.min(Number(t2raw), DB.config.cbtTestMax);
     if (thraw !== '') DB.manualScores[s.reg][subjectId].theory = Math.min(Number(thraw), DB.config.theoryMax);
   });
   setData('manualScores', DB.manualScores).then(() => flash('Marks saved.', 'success'));
@@ -1087,21 +1326,44 @@ function saveMarks(subjectId) {
 
 /* ===================== STUDENT ===================== */
 function viewStudentLogin() {
+  const selSubj = state.stuSelectedSubject || (DB.subjects[0] && DB.subjects[0].id);
   return `
-  <div class="card narrow">
-    <h2>Student Login</h2>
-    <label>Registration Number</label>
-    <input id="stuReg"/>
-    <label>Subject</label>
-    <select id="stuSubject">${DB.subjects.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select>
-    <label>Subject Access Password</label>
-    <input id="stuSubjPass" type="password" placeholder="Given by your teacher"/>
-    <button class="btn primary" onclick="doStudentLogin()">Continue</button>
+  <div class="stepbox">
+    <h2>Step 1 &mdash; Select Your Subject</h2>
+    <div class="stepbox-body pickgrid">
+      ${DB.subjects.map(s => `
+        <div class="pickcard ${selSubj === s.id ? 'sel' : ''}" onclick="pickStuSubject('${s.id}')">
+          <div class="pickcard-title">${esc(s.name)}</div>
+        </div>`).join('') || '<p class="hint">No subjects available yet — contact management.</p>'}
+    </div>
+  </div>
+
+  <div class="stepbox">
+    <h2>Step 2 &mdash; Enter Your Details</h2>
+    <div class="stepbox-body grid2">
+      <div><label>Registration Number</label><input id="stuReg" placeholder="e.g. OEC/JSS1/025"/></div>
+      <div><label>Subject Access Password</label><input id="stuSubjPass" type="password" placeholder="Given by your teacher"/></div>
+    </div>
+    <button class="btn primary big" style="width:100%;margin-top:16px;" onclick="doStudentLogin()">&#9654; Start</button>
+  </div>
+
+  <div class="stepbox">
+    <h2>Examination Instructions</h2>
+    <div class="stepbox-body">
+      <ol style="margin:0;padding-left:20px;line-height:1.9;">
+        <li>Select your <b>subject</b> above before proceeding.</li>
+        <li>Enter your <b>registration number</b> and <b>subject access password</b> correctly.</li>
+        <li>The Test is ${DB.config.testQCount} questions in ${DB.config.testDurationMin} minutes; the Examination is ${DB.config.examQCount} questions in ${DB.config.examDurationMin} minutes.</li>
+        <li>Any form of malpractice is strictly prohibited and may lead to cancellation of your script.</li>
+        <li>Use your time wisely — each session submits automatically when the timer reaches zero.</li>
+      </ol>
+    </div>
   </div>`;
 }
+function pickStuSubject(id) { state.stuSelectedSubject = id; render(); }
 function doStudentLogin() {
   const reg = document.getElementById('stuReg').value.trim();
-  const subjectId = document.getElementById('stuSubject').value;
+  const subjectId = state.stuSelectedSubject || (DB.subjects[0] && DB.subjects[0].id);
   const pass = document.getElementById('stuSubjPass').value;
   const stu = DB.students.find(s => s.reg === reg);
   if (!stu) { flash('Reg. number not found. Contact management.', 'error'); return; }
@@ -1124,6 +1386,7 @@ function viewStudentDash() {
   const qBank = DB.questions[subj.id] || {};
   const testReady = (qBank.test || []).length >= DB.config.testQCount;
   const examReady = (qBank.exam || []).length >= DB.config.examQCount;
+  const manual2 = secondTestMode(subj.id) === 'manual';
 
   return `
   <div class="card">
@@ -1136,12 +1399,15 @@ function viewStudentDash() {
 
     <div class="grid2">
       <div class="taskcard">
-        <h3>Test (2nd Test / CBT)</h3>
+        <h3>Test (2nd Test)</h3>
+        ${manual2 ? `
+        <p>This subject's 2nd Test is entered directly by your teacher — no computer test to take.</p>
+        <p class="hint">Check your Result Portal after your teacher records it.</p>` : `
         <p>${DB.config.testQCount} questions &middot; ${DB.config.testDurationMin} minutes &middot; ${DB.config.cbtTestMax} marks</p>
         ${a.testDone && !a.approvedRetake ? `<p class="ok">Completed. Score: ${a.testScore}/${DB.config.cbtTestMax}</p>` : ''}
         <button class="btn primary" ${(!testAvailable || !testReady) ? 'disabled' : ''} onclick="startRun('test')">
           ${!testReady ? 'Not yet available' : (testAvailable ? 'Start Test' : 'Already Completed')}
-        </button>
+        </button>`}
       </div>
       <div class="taskcard">
         <h3>Examination (CBT)</h3>
@@ -1163,6 +1429,7 @@ function startRun(mode) {
   const count = mode === 'test' ? DB.config.testQCount : DB.config.examQCount;
   const durMin = mode === 'test' ? DB.config.testDurationMin : DB.config.examDurationMin;
   if (bank.length < count) { flash('Questions are not fully set up yet.', 'error'); return; }
+  state.runContext = 'student';
   state.runMode = mode;
   // Each student session gets its own randomised question order AND its own
   // randomised A/B/C/D option order, so no two students see the same
@@ -1209,10 +1476,11 @@ function fmtTime(s) {
 
 function viewStudentRun() {
   const subj = DB.subjects.find(s => s.id === state.studentSubjectId);
+  const titleLabel = state.runContext === 'entrance' ? 'Entrance Examination' : (state.runMode === 'test' ? 'Test' : 'Examination');
   return `
   <div class="card">
     <div class="row spread runbar">
-      <h2>${esc(subj.name)} &mdash; ${state.runMode === 'test' ? 'Test' : 'Examination'}</h2>
+      <h2>${esc(subj.name)} &mdash; ${titleLabel}</h2>
       <div class="timer" id="runTimerDisplay">${fmtTime(state.runSecondsLeft)}</div>
     </div>
     <p class="hint">Answer all questions. Do not switch tabs or windows.</p>
@@ -1227,7 +1495,7 @@ function viewStudentRun() {
             </label>`).join('')}
         </div>
       </div>`).join('')}
-    <button class="btn primary big" onclick="confirmSubmit()">Submit ${state.runMode === 'test' ? 'Test' : 'Examination'}</button>
+    <button class="btn primary big" onclick="confirmSubmit()">Submit ${titleLabel}</button>
   </div>`;
 }
 function setAnswer(i, o) { state.runAnswers[i] = o; render(); }
@@ -1242,8 +1510,22 @@ function confirmSubmit() {
 function submitRun(auto) {
   let score = 0;
   state.runQuestions.forEach((q, i) => { if (state.runAnswers[i] === q.correct) score++; });
-  const maxMarks = state.runMode === 'test' ? DB.config.cbtTestMax : DB.config.cbtExamMax;
   const qCount = state.runQuestions.length;
+
+  if (state.runContext === 'entrance') {
+    const candidateId = state.entranceCandidateId;
+    const subjectId = state.studentSubjectId;
+    if (!DB.entranceAttempts[candidateId]) DB.entranceAttempts[candidateId] = {};
+    DB.entranceAttempts[candidateId][subjectId] = { score, max: qCount, done: true, at: new Date().toISOString() };
+    setData('entranceAttempts', DB.entranceAttempts).then(() => {
+      flash((auto ? 'Time up — ' : '') + 'Submitted. Score recorded.', 'success');
+      state.runContext = 'student';
+      go('entrance-dash');
+    });
+    return;
+  }
+
+  const maxMarks = state.runMode === 'test' ? DB.config.cbtTestMax : DB.config.cbtExamMax;
   const scaled = Math.round((score / qCount) * maxMarks * 10) / 10;
 
   const reg = state.studentReg, subjectId = state.studentSubjectId;
@@ -1371,6 +1653,155 @@ function viewResultsView() {
   </div>`;
 }
 
+/* ===================== ENTRANCE EXAMINATION (Candidate side) ===================== */
+function viewEntrancePortal() {
+  return `
+  <div class="hero">
+    <h1>Entrance Examination</h1>
+    <p class="hero-sub">For new intake students / pupils</p>
+  </div>
+  <div class="portal-grid">
+    <div class="portal-card" onclick="go('entrance-login')">
+      <div class="portal-icon">E</div>
+      <h3>Sit the Entrance Exam</h3>
+      <p>Candidates with a Candidate No. can log in here.</p>
+    </div>
+    <div class="portal-card" onclick="go('entrance-result-login')">
+      <div class="portal-icon">R</div>
+      <h3>Check Entrance Result</h3>
+      <p>See your score using your Candidate No.</p>
+    </div>
+  </div>`;
+}
+function viewEntranceLogin() {
+  return `
+  <div class="card narrow">
+    <h2>Candidate Login</h2>
+    <label>Candidate Number</label>
+    <input id="entCandId" placeholder="e.g. ENT-4821"/>
+    <label>Candidate Access Password</label>
+    <input id="entCandPass" type="password"/>
+    <button class="btn primary" onclick="doEntranceLogin()">Continue</button>
+  </div>`;
+}
+function doEntranceLogin() {
+  const id = document.getElementById('entCandId').value.trim().toUpperCase();
+  const pass = document.getElementById('entCandPass').value;
+  const cand = DB.entranceCandidates.find(c => c.id === id);
+  if (!cand) { flash('Candidate number not found. Contact management.', 'error'); return; }
+  if (pass !== DB.entranceConfig.password) { flash('Incorrect access password.', 'error'); return; }
+  state.entranceCandidateId = id;
+  go('entrance-dash');
+}
+function viewEntranceDash() {
+  const cand = DB.entranceCandidates.find(c => c.id === state.entranceCandidateId);
+  if (!cand) return viewEntranceLogin();
+  const ec = DB.entranceConfig;
+  const att = DB.entranceAttempts[cand.id] || {};
+  return `
+  <div class="card">
+    <h2>Welcome, ${esc(cand.name)}</h2>
+    <p>Candidate No.: <b>${esc(cand.id)}</b> &middot; Applying for: ${esc(cand.appliedClass)}</p>
+    <div class="noticebox">
+      <b>Examination Malpractice Notice:</b> Any form of malpractice is strictly prohibited. Use your time wisely — each subject submits automatically when its timer reaches zero.
+    </div>
+    <div class="grid2">
+      ${ec.subjects.map(id => {
+        const s = DB.subjects.find(x => x.id === id);
+        if (!s) return '';
+        const bank = (DB.questions[id] && DB.questions[id].entrance) || [];
+        const ready = bank.length >= ec.qCountPerSubject;
+        const done = att[id] && att[id].done;
+        return `
+        <div class="taskcard">
+          <h3>${esc(s.name)}</h3>
+          <p>${ec.qCountPerSubject} questions &middot; ${ec.durationMin} minutes</p>
+          ${done ? `<p class="ok">Completed. Score: ${att[id].score}/${att[id].max}</p>` : ''}
+          <button class="btn primary" ${(!ready || done) ? 'disabled' : ''} onclick="startEntranceRun('${id}')">
+            ${!ready ? 'Not yet available' : (done ? 'Already Completed' : 'Start')}
+          </button>
+        </div>`;
+      }).join('') || '<p class="hint">No subjects configured yet.</p>'}
+    </div>
+    <button class="btn ghost" onclick="state.entranceCandidateId=null; go('entrance-portal')">Log Out</button>
+  </div>`;
+}
+function startEntranceRun(subjectId) {
+  const bank = (DB.questions[subjectId] && DB.questions[subjectId].entrance) || [];
+  const count = DB.entranceConfig.qCountPerSubject;
+  const durMin = DB.entranceConfig.durationMin;
+  if (bank.length < count) { flash('Questions are not fully set up yet.', 'error'); return; }
+  state.runContext = 'entrance';
+  state.studentSubjectId = subjectId;
+  state.runMode = 'exam';
+  state.runQuestions = shuffle(bank.slice(0, count).map((q, i) => Object.assign({ idx: i }, q))).map(shuffleOptions);
+  state.runAnswers = {};
+  state.runSecondsLeft = durMin * 60;
+  state.warnCount = 0;
+  go('student-run');
+  state.runTimer = setInterval(tickTimer, 1000);
+}
+function viewEntranceResultLogin() {
+  return `
+  <div class="card narrow">
+    <h2>Check Entrance Result</h2>
+    <label>Candidate Number</label>
+    <input id="entResultId" placeholder="e.g. ENT-4821"/>
+    <button class="btn primary" onclick="doEntranceResultLogin()">View Result</button>
+  </div>`;
+}
+function doEntranceResultLogin() {
+  const id = document.getElementById('entResultId').value.trim().toUpperCase();
+  const cand = DB.entranceCandidates.find(c => c.id === id);
+  if (!cand) { flash('Candidate number not found.', 'error'); return; }
+  state.entranceCandidateId = id;
+  state.fromAdmin = false;
+  go('entrance-result-view');
+}
+function viewEntranceResultView() {
+  const cand = DB.entranceCandidates.find(c => c.id === state.entranceCandidateId);
+  if (!cand) return `<p>Candidate not found.</p>`;
+  const ec = DB.entranceConfig;
+  const att = DB.entranceAttempts[cand.id] || {};
+  let total = 0, max = 0;
+  const rows = ec.subjects.map(id => {
+    const s = DB.subjects.find(x => x.id === id);
+    if (!s) return null;
+    const a = att[id];
+    if (a) { total += a.score; max += a.max; }
+    return { name: s.name, a };
+  }).filter(Boolean);
+  return `
+  <div class="result-sheet">
+    <img src="${LOGO}" class="watermark" alt=""/>
+    <div class="result-header">
+      <img src="${LOGO}" class="result-logo" alt="logo"/>
+      <div>
+        <div class="result-school">${esc(DB.config.schoolName)}</div>
+        <div class="result-addr">${esc(DB.config.address)}</div>
+        <div class="result-addr">${esc(DB.config.email)}${DB.config.phone ? ' | ' + esc(DB.config.phone) : ''}</div>
+      </div>
+    </div>
+    <h3 class="result-title">Entrance Examination Result &mdash; ${esc(DB.config.session)}</h3>
+    <div class="grid2 result-meta">
+      <div><b>Name:</b> ${esc(cand.name)}</div>
+      <div><b>Candidate No.:</b> ${esc(cand.id)}</div>
+      <div><b>Applying For:</b> ${esc(cand.appliedClass)}</div>
+    </div>
+    <table class="tbl result-tbl">
+      <tr><th>Subject</th><th>Score</th></tr>
+      ${rows.map(r => `<tr><td>${esc(r.name)}</td><td>${r.a ? r.a.score + ' / ' + r.a.max : 'Pending'}</td></tr>`).join('')}
+    </table>
+    <div class="grid2 result-summary">
+      <div><b>Total:</b> ${max ? total + ' / ' + max : 'Pending'}</div>
+    </div>
+    <div class="result-footer">Generated via the ${esc(DB.config.shortName)} CBT Portal.</div>
+  </div>
+  <div class="noprint">
+    <button class="btn primary" onclick="window.print()">Print / Save as PDF</button>
+  </div>`;
+}
+
 /* ---------- boot ---------- */
 window.__afterRender = null;
 boot();
@@ -1378,5 +1809,3 @@ boot();
 </script>
 </body>
 </html>
-
-add question bank feature
