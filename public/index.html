@@ -290,6 +290,7 @@ let state = {
   msgType: 'info',
   aiBusy: false,
   bankEdit: null,
+  questionDraft: null,
   runContext: 'student',   // 'student' | 'entrance'
   entranceCandidateId: null,
   mgmtEntranceCandName: '',
@@ -996,8 +997,8 @@ function viewTeacher() {
     <div class="tabpanel">${teacherPanel(tab, subj)}</div>
   </div>`;
 }
-function pickTeacherSubject(id) { state.teacherSubjectId = id; state.teachTab = 'scheme'; render(); }
-function teachTab(t) { state.teachTab = t; render(); }
+function pickTeacherSubject(id) { state.teacherSubjectId = id; state.teachTab = 'scheme'; state.questionDraft = null; render(); }
+function teachTab(t) { state.teachTab = t; state.questionDraft = null; render(); }
 
 function teacherPanel(tab, subj) {
   if (tab === 'scheme') return teacherScheme(subj);
@@ -1165,7 +1166,8 @@ function deleteBankItem(subjectId, index) {
 
 function teacherQuestions(subj, kind) {
   const count = kind === 'test' ? DB.config.testQCount : kind === 'exam' ? DB.config.examQCount : DB.entranceConfig.qCountPerSubject;
-  const list = (DB.questions[subj.id] && DB.questions[subj.id][kind]) || [];
+  const draft = (state.questionDraft && state.questionDraft.subjectId === subj.id && state.questionDraft.kind === kind) ? state.questionDraft.items : null;
+  const list = draft || (DB.questions[subj.id] && DB.questions[subj.id][kind]) || [];
   const rows = [];
   for (let i = 0; i < count; i++) {
     const q = list[i] || { q: '', A: '', B: '', C: '', D: '', correct: 'A' };
@@ -1212,6 +1214,7 @@ function saveQuestions(subjectId, kind, count) {
   }
   if (!DB.questions[subjectId]) DB.questions[subjectId] = {};
   DB.questions[subjectId][kind] = list;
+  state.questionDraft = null;
   setData('questions', DB.questions).then(() => flash('Questions saved.', 'success'));
 }
 
@@ -1231,19 +1234,8 @@ function generateFromBank(subjectId, kind, count) {
     flash(`The question bank only has ${pool.length} question(s) -- need at least ${count}. Add more on the Question Bank tab first.`, 'error');
     return;
   }
-  const picked = shuffle(pool).slice(0, count);
-  for (let i = 0; i < count; i++) {
-    const q = picked[i] || { q: '', A: '', B: '', C: '', D: '', correct: 'A' };
-    const el = id => document.getElementById(id);
-    if (el(`q_${kind}_${i}_q`)) {
-      el(`q_${kind}_${i}_q`).value = q.q || '';
-      el(`q_${kind}_${i}_A`).value = q.A || '';
-      el(`q_${kind}_${i}_B`).value = q.B || '';
-      el(`q_${kind}_${i}_C`).value = q.C || '';
-      el(`q_${kind}_${i}_D`).value = q.D || '';
-      el(`q_${kind}_${i}_correct`).value = (q.correct || 'A').toUpperCase();
-    }
-  }
+  const picked = shuffle(pool).slice(0, count).map(q => ({ q: q.q || '', A: q.A || '', B: q.B || '', C: q.C || '', D: q.D || '', correct: (q.correct || 'A').toUpperCase() }));
+  state.questionDraft = { subjectId, kind, items: picked };
   flash(`Picked ${count} question(s) from the bank -- review below, then Save.`, 'success');
 }
 
@@ -1266,18 +1258,12 @@ async function aiGenerate(subjectId, kind, count) {
     if (data.error) throw new Error(data.error);
     const arr = data.questions;
     if (!Array.isArray(arr) || !arr.length) throw new Error('Bad AI response');
+    const items = [];
     for (let i = 0; i < count; i++) {
       const q = arr[i] || { q: '', A: '', B: '', C: '', D: '', correct: 'A' };
-      const el = id => document.getElementById(id);
-      if (el(`q_${kind}_${i}_q`)) {
-        el(`q_${kind}_${i}_q`).value = q.q || '';
-        el(`q_${kind}_${i}_A`).value = q.A || '';
-        el(`q_${kind}_${i}_B`).value = q.B || '';
-        el(`q_${kind}_${i}_C`).value = q.C || '';
-        el(`q_${kind}_${i}_D`).value = q.D || '';
-        el(`q_${kind}_${i}_correct`).value = (q.correct || 'A').toUpperCase();
-      }
+      items.push({ q: q.q || '', A: q.A || '', B: q.B || '', C: q.C || '', D: q.D || '', correct: (q.correct || 'A').toUpperCase() });
     }
+    state.questionDraft = { subjectId, kind, items };
     flash('Draft questions generated — review and edit, then Save.', 'success');
   } catch (e) {
     console.error(e);
