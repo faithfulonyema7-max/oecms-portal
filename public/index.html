@@ -546,7 +546,7 @@ function goHome() {
 
 function banner() {
   let out = '';
-  if (!HAS_CLOUD_STORAGE && state.view === 'home') {
+  if (typeof HAS_CLOUD_STORAGE !== 'undefined' && !HAS_CLOUD_STORAGE && state.view === 'home') {
     out += `<div class="flash info">Running in local mode: all data (students, subjects, scores) is saved in this browser only. Use the same browser/device for management, teaching, and student sessions, or host this file on a shared server for multi-device use.</div>`;
   }
   if (state.msg) out += `<div class="flash ${state.msgType}">${esc(state.msg)}</div>`;
@@ -1714,5 +1714,4 @@ function shuffleOptions(q) {
 }
 function tickTimer() {
   state.runSecondsLeft--;
-  if (state.runSecondsLeft <= 0) {
-    clearInterval(state.
+  if (state.run
