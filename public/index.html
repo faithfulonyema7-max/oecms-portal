@@ -250,7 +250,28 @@ const DEFAULT_CONFIG = {
   term: "First Term"
 };
 
-const DEFAULT_CLASSES = ["JSS1", "JSS2", "JSS3", "SS1", "SS2", "SS3"];
+const SECTIONS = ['Primary', 'Junior Secondary', 'Senior Secondary'];
+const DEFAULT_CLASSES = [
+  { name: 'Primary 1', section: 'Primary' }, { name: 'Primary 2', section: 'Primary' },
+  { name: 'Primary 3', section: 'Primary' }, { name: 'Primary 4', section: 'Primary' },
+  { name: 'Primary 5', section: 'Primary' }, { name: 'Primary 6', section: 'Primary' },
+  { name: 'JSS1', section: 'Junior Secondary' }, { name: 'JSS2', section: 'Junior Secondary' }, { name: 'JSS3', section: 'Junior Secondary' },
+  { name: 'SS1', section: 'Senior Secondary' }, { name: 'SS2', section: 'Senior Secondary' }, { name: 'SS3', section: 'Senior Secondary' }
+];
+function classSection(className) {
+  const c = DB.classes.find(x => x.name === className);
+  return c ? c.section : '';
+}
+function classesBySection(names) {
+  const out = {};
+  SECTIONS.forEach(s => out[s] = []);
+  (names || DB.classes.map(c => c.name)).forEach(n => {
+    const sec = classSection(n) || 'Junior Secondary';
+    if (!out[sec]) out[sec] = [];
+    out[sec].push(n);
+  });
+  return out;
+}
 
 /* ---------- global in-memory mirror of persisted data ---------- */
 let DB = {
@@ -294,7 +315,9 @@ let state = {
   runContext: 'student',   // 'student' | 'entrance'
   entranceCandidateId: null,
   mgmtEntranceCandName: '',
-  mgmtEntranceCandClass: ''
+  mgmtEntranceCandClass: '',
+  viewHistory: [],
+  expandedSubjectId: null
 };
 
 /* ---------- boot ---------- */
@@ -313,7 +336,34 @@ async function boot() {
   DB.entranceConfig = await getData('entranceConfig', { subjects: [], qCountPerSubject: 15, durationMin: 20, password: 'oecms-entrance-2026' });
   DB.entranceCandidates = await getData('entranceCandidates', []);
   DB.entranceAttempts = await getData('entranceAttempts', {});
+  migrateOldData();
   render();
+}
+
+/* Older saved data (from before class-sections existed) used plain class-name
+   strings and subject-wide scheme/questions. Normalise it here so existing
+   sites don't break — nothing is deleted, just reshaped to fit. */
+function migrateOldData() {
+  let classesChanged = false;
+  DB.classes = DB.classes.map(c => {
+    if (typeof c === 'string') {
+      classesChanged = true;
+      let section = 'Junior Secondary';
+      if (/primary/i.test(c)) section = 'Primary';
+      else if (/^ss/i.test(c.trim())) section = 'Senior Secondary';
+      else if (/^jss/i.test(c.trim())) section = 'Junior Secondary';
+      return { name: c, section };
+    }
+    return c;
+  });
+  if (classesChanged) setData('classes', DB.classes);
+
+  let subjectsChanged = false;
+  DB.subjects.forEach(s => {
+    if (!Array.isArray(s.classes)) { s.classes = []; subjectsChanged = true; }
+    if (!s.schemes || typeof s.schemes !== 'object') { s.schemes = {}; subjectsChanged = true; }
+  });
+  if (subjectsChanged) setData('subjects', DB.subjects);
 }
 
 function flash(msg, type) {
@@ -324,7 +374,36 @@ function flash(msg, type) {
 }
 
 function go(view) {
+  if (state.view && state.view !== view) {
+    state.viewHistory.push(state.view);
+    if (state.viewHistory.length > 30) state.viewHistory.shift();
+  }
   state.view = view;
+  window.scrollTo(0, 0);
+  render();
+}
+function goBack() {
+  // Some screens have their own internal drill-down (subject -> class -> tabs,
+  // or a class-picker inside a management tab) that never changes state.view,
+  // so the generic history stack below doesn't know about those steps. Peel
+  // those back one level at a time first.
+  if (state.view === 'teacher' && state.teacherAuthed) {
+    if (state.teacherClassId) { state.teacherClassId = null; state.questionDraft = null; window.scrollTo(0, 0); render(); return; }
+    if (state.teacherSubjectId) { state.teacherSubjectId = null; window.scrollTo(0, 0); render(); return; }
+  }
+  if (state.view === 'student-login' && state.stuSelectedClass) {
+    state.stuSelectedClass = null; state.stuSelectedSubject = null; window.scrollTo(0, 0); render(); return;
+  }
+  if (state.view === 'mgmt') {
+    if (state.mgmtTab === 'payments' && state.payClass) { state.payClass = null; window.scrollTo(0, 0); render(); return; }
+    if (state.mgmtTab === 'results' && state.mgmtResultsClass) { state.mgmtResultsClass = null; window.scrollTo(0, 0); render(); return; }
+    if (state.expandedSubjectId) { state.expandedSubjectId = null; window.scrollTo(0, 0); render(); return; }
+  }
+  if (state.view === 'student-dash') state.studentReg = null;
+  if (state.view === 'entrance-dash') state.entranceCandidateId = null;
+  const prev = state.viewHistory.pop();
+  state.fromAdmin = false;
+  state.view = prev || 'home';
   window.scrollTo(0, 0);
   render();
 }
@@ -431,7 +510,8 @@ function render() {
 function header() {
   return `
   <div class="topbar">
-    ${state.view !== 'home' ? `<button class="btn ghost small" onclick="goHome()">&larr; Home</button>` : ''}
+    ${state.view !== 'home' ? `<button class="btn ghost small" style="position:absolute;left:16px;top:16px;margin:0;" onclick="goBack()">&larr; Back</button>` : ''}
+    ${state.view !== 'home' ? `<button class="btn ghost small" style="position:absolute;right:16px;top:16px;margin:0;" onclick="confirmGoHome()">Home</button>` : ''}
     <img src="${LOGO}" class="topbar-logo" alt="OECMS logo"/>
     <div class="topbar-text">
       <div class="topbar-title">${esc(DB.config.schoolName)}</div>
@@ -441,18 +521,36 @@ function header() {
   </div>`;
 }
 
+function confirmGoHome() {
+  if (state.view === 'student-run') {
+    if (!confirm('Leave now? Your test/exam is still in progress and this will NOT submit it for you.')) return;
+  }
+  goHome();
+}
 function goHome() {
   state.mgmtAuthed = false;
   state.teacherAuthed = false;
+  state.teacherSubjectId = null;
+  state.teacherClassId = null;
+  state.teachTab = null;
   state.studentReg = null;
+  state.stuSelectedClass = null;
+  state.stuSelectedSubject = null;
   state.entranceCandidateId = null;
+  state.fromAdmin = false;
+  state.questionDraft = null;
+  state.viewHistory = [];
   state.view = 'home';
   render();
 }
 
 function banner() {
-  if (!state.msg) return '';
-  return `<div class="flash ${state.msgType}">${esc(state.msg)}</div>`;
+  let out = '';
+  if (!HAS_CLOUD_STORAGE && state.view === 'home') {
+    out += `<div class="flash info">Running in local mode: all data (students, subjects, scores) is saved in this browser only. Use the same browser/device for management, teaching, and student sessions, or host this file on a shared server for multi-device use.</div>`;
+  }
+  if (state.msg) out += `<div class="flash ${state.msgType}">${esc(state.msg)}</div>`;
+  return out;
 }
 
 function footerBar() {
@@ -466,6 +564,7 @@ function body() {
     case 'mgmt': return viewMgmt();
     case 'teacher-login': return viewTeacherLogin();
     case 'teacher': return viewTeacher();
+    case 'teacher-subjectwide': return viewTeacherSubjectWide();
     case 'student-login': return viewStudentLogin();
     case 'student-dash': return viewStudentDash();
     case 'student-run': return viewStudentRun();
@@ -537,6 +636,10 @@ function doMgmtLogin() {
   if (v === DB.config.managementPassword) {
     state.mgmtAuthed = true;
     state.mgmtTab = 'subjects';
+    state.expandedSubjectId = null;
+    state.payClass = null;
+    state.mgmtResultsClass = null;
+    state.apprSubject = null;
     go('mgmt');
   } else {
     flash('Incorrect password.', 'error');
@@ -581,24 +684,59 @@ function mgmtSubjects() {
     <input id="newSubjectName" placeholder="New subject name"/>
     <button class="btn primary" onclick="addSubject()">Add Subject</button>
   </div>
-  <table class="tbl">
-    <tr><th>Name</th><th>CBT Access Password</th><th>2nd Test</th><th>Scheme of Work</th><th>Questions</th><th></th></tr>
-    ${DB.subjects.map(s => `
-      <tr>
-        <td><input value="${esc(s.name)}" onchange="renameSubject('${s.id}', this.value)"/></td>
-        <td><input value="${esc(s.password || '')}" placeholder="set access password" onchange="setSubjectPassword('${s.id}', this.value)"/></td>
-        <td>
-          <select onchange="setSecondTestMode('${s.id}', this.value)">
-            <option value="cbt" ${(!s.secondTestMode || s.secondTestMode === 'cbt') ? 'selected' : ''}>CBT</option>
-            <option value="manual" ${s.secondTestMode === 'manual' ? 'selected' : ''}>Manual entry</option>
-          </select>
-        </td>
-        <td>${(s.scheme || '').length} chars</td>
-        <td>Test: ${(DB.questions[s.id] && DB.questions[s.id].test || []).length}/${DB.config.testQCount} &middot; Exam: ${(DB.questions[s.id] && DB.questions[s.id].exam || []).length}/${DB.config.examQCount}</td>
-        <td><button class="btn danger small" onclick="deleteSubject('${s.id}')">Delete</button></td>
-      </tr>`).join('')}
-  </table>
-  <p class="hint">Tip: use the Teacher Portal (or edit here) to paste each subject's scheme of work and set/generate its questions. "2nd Test" set to Manual means teachers type that mark directly instead of students sitting a computer test for it.</p>`;
+  ${DB.subjects.map(s => state.expandedSubjectId === s.id ? mgmtSubjectCard(s) : mgmtSubjectRow(s)).join('') || '<p class="hint">No subjects yet.</p>'}
+  <p class="hint">Newest subjects appear at the top. Click "View" to edit a subject's password, 2nd Test mode, or which classes offer it.</p>`;
+}
+function mgmtSubjectRow(s) {
+  const classCount = (s.classes || []).length;
+  return `
+  <div class="row spread" style="padding:10px 14px;border:1px solid var(--line);border-radius:10px;margin-top:8px;background:#fff;">
+    <div><b>${esc(s.name)}</b> <span class="hint">&middot; ${classCount} class${classCount === 1 ? '' : 'es'}</span></div>
+    <button class="btn small" onclick="toggleSubjectExpand('${s.id}')">View</button>
+  </div>`;
+}
+function toggleSubjectExpand(id) {
+  state.expandedSubjectId = state.expandedSubjectId === id ? null : id;
+  render();
+}
+function mgmtSubjectCard(s) {
+  const bySec = classesBySection();
+  const classCount = (s.classes || []).length;
+  return `
+  <div class="card" style="margin-top:14px;">
+    <div class="row spread" style="margin-top:0;">
+      <h3 style="margin:0;color:var(--navy);">${esc(s.name)}</h3>
+      <button class="btn ghost small" onclick="toggleSubjectExpand('${s.id}')">Collapse</button>
+    </div>
+    <div class="grid2">
+      <div><label>Name</label><input value="${esc(s.name)}" onchange="renameSubject('${s.id}', this.value)"/></div>
+      <div><label>CBT Access Password</label><input value="${esc(s.password || '')}" placeholder="set access password" onchange="setSubjectPassword('${s.id}', this.value)"/></div>
+      <div><label>2nd Test</label>
+        <select onchange="setSecondTestMode('${s.id}', this.value)">
+          <option value="cbt" ${(!s.secondTestMode || s.secondTestMode === 'cbt') ? 'selected' : ''}>CBT</option>
+          <option value="manual" ${s.secondTestMode === 'manual' ? 'selected' : ''}>Manual entry</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:flex-end;"><button class="btn danger small" onclick="deleteSubject('${s.id}')">Delete Subject</button></div>
+    </div>
+    <label style="margin-top:16px;">Classes offering this subject (${classCount} selected)</label>
+    ${SECTIONS.map(sec => `
+      <div class="hint" style="margin:8px 0 2px;font-weight:700;">${sec}</div>
+      <div class="chiplist">
+        ${(bySec[sec] || []).map(name => `
+          <label class="opt ${(s.classes || []).includes(name) ? 'sel' : ''}" style="display:inline-flex;width:auto;">
+            <input type="checkbox" ${(s.classes || []).includes(name) ? 'checked' : ''} onchange="toggleSubjectClass('${s.id}','${esc(name)}', this.checked)"/>
+            <span>${esc(name)}</span>
+          </label>`).join('') || '<span class="hint">No classes in this section yet — add some under the Classes tab.</span>'}
+      </div>`).join('')}
+  </div>`;
+}
+function toggleSubjectClass(subjectId, className, checked) {
+  const s = DB.subjects.find(x => x.id === subjectId); if (!s) return;
+  if (!s.classes) s.classes = [];
+  if (checked) { if (!s.classes.includes(className)) s.classes.push(className); }
+  else { s.classes = s.classes.filter(c => c !== className); }
+  setData('subjects', DB.subjects).then(() => { flash('Classes updated.', 'success'); render(); });
 }
 function setSecondTestMode(id, val) {
   const s = DB.subjects.find(x => x.id === id); if (!s) return;
@@ -608,8 +746,10 @@ function setSecondTestMode(id, val) {
 function addSubject() {
   const name = document.getElementById('newSubjectName').value.trim();
   if (!name) return;
-  DB.subjects.push({ id: uid('subj'), name, scheme: '', password: 'subj' + Math.floor(1000 + Math.random() * 9000) });
-  setData('subjects', DB.subjects).then(() => flash('Subject added.', 'success'));
+  const newSubj = { id: uid('subj'), name, classes: [], schemes: {}, password: 'subj' + Math.floor(1000 + Math.random() * 9000) };
+  DB.subjects.unshift(newSubj);
+  state.expandedSubjectId = newSubj.id;
+  setData('subjects', DB.subjects).then(() => flash('Subject added — now tick which classes offer it.', 'success'));
   render();
 }
 function renameSubject(id, val) {
@@ -627,23 +767,28 @@ function deleteSubject(id) {
 }
 
 function mgmtClasses() {
+  const bySec = classesBySection();
   return `
   <h2>Classes</h2>
-  <div class="row">
+  <div class="row wrap">
     <input id="newClassName" placeholder="New class name e.g. JSS1"/>
+    <select id="newClassSection">${SECTIONS.map(s => `<option>${s}</option>`).join('')}</select>
     <button class="btn primary" onclick="addClass()">Add Class</button>
   </div>
-  <div class="chiplist">
-    ${DB.classes.map(c => `<span class="chip">${esc(c)} <a href="#" onclick="deleteClass('${esc(c)}');return false;">&times;</a></span>`).join('')}
-  </div>`;
+  ${SECTIONS.map(sec => `
+    <h3 style="margin-top:18px;">${sec}</h3>
+    <div class="chiplist">
+      ${(bySec[sec] || []).map(name => `<span class="chip">${esc(name)} <a href="#" onclick="deleteClass('${esc(name)}');return false;">&times;</a></span>`).join('') || '<p class="hint" style="margin:0">No classes yet.</p>'}
+    </div>`).join('')}`;
 }
 function addClass() {
   const v = document.getElementById('newClassName').value.trim();
-  if (!v || DB.classes.includes(v)) return;
-  DB.classes.push(v); setData('classes', DB.classes); render();
+  const section = document.getElementById('newClassSection').value;
+  if (!v || DB.classes.find(c => c.name === v)) return;
+  DB.classes.push({ name: v, section }); setData('classes', DB.classes); render();
 }
-function deleteClass(c) {
-  DB.classes = DB.classes.filter(x => x !== c);
+function deleteClass(name) {
+  DB.classes = DB.classes.filter(x => x.name !== name);
   setData('classes', DB.classes); render();
 }
 
@@ -653,7 +798,7 @@ function mgmtStudents() {
   <div class="row wrap">
     <input id="newStudReg" placeholder="Reg. Number"/>
     <input id="newStudName" placeholder="Full Name"/>
-    <select id="newStudClass">${DB.classes.map(c => `<option>${esc(c)}</option>`).join('')}</select>
+    <select id="newStudClass">${DB.classes.map(c => `<option>${esc(c.name)}</option>`).join('')}</select>
     <button class="btn primary" onclick="addStudent()">Add Student</button>
   </div>
   <table class="tbl">
@@ -664,7 +809,7 @@ function mgmtStudents() {
         <td><input value="${esc(s.name)}" onchange="editStudentName('${esc(s.reg)}', this.value)"/></td>
         <td>
           <select onchange="editStudentClass('${esc(s.reg)}', this.value)">
-            ${DB.classes.map(c => `<option ${c === s.class ? 'selected' : ''}>${esc(c)}</option>`).join('')}
+            ${DB.classes.map(c => `<option ${c.name === s.class ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
           </select>
         </td>
         <td><button class="btn danger small" onclick="deleteStudent('${esc(s.reg)}')">Delete</button></td>
@@ -696,38 +841,48 @@ function deleteStudent(reg) {
 }
 
 function mgmtPayments() {
-  const subjOpts = DB.subjects.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
-  const sel = state.paySubject || (DB.subjects[0] && DB.subjects[0].id);
+  const bySec = classesBySection();
+  const sel = state.payClass;
+  if (!sel) {
+    return `
+    <h2>Examination Payment Approval</h2>
+    <p class="hint">Pick a class, then paste the reg. numbers of students who have paid. This unlocks the CBT Examination for every subject in that class. Does not restrict the Test.</p>
+    ${SECTIONS.map(sec => (bySec[sec] || []).length ? `
+      <div class="hint" style="margin:10px 0 4px;font-weight:700;">${sec}</div>
+      <div class="pickgrid">
+        ${(bySec[sec] || []).map(cn => `<div class="pickcard" onclick="setPayClass('${esc(cn)}')"><div class="pickcard-title">${esc(cn)}</div></div>`).join('')}
+      </div>` : '').join('') || '<p class="hint">No classes set up yet.</p>'}`;
+  }
   const paidList = (DB.paid[sel] || []);
   return `
-  <h2>Examination Payment Approval</h2>
-  <p class="hint">Only reg. numbers listed here as "paid" for a subject may sit its CBT Examination. This does not restrict the Test.</p>
-  <label>Subject</label>
-  <select onchange="setPaySubject(this.value)">${subjOpts}</select>
+  <div class="row spread">
+    <h2>${esc(sel)} &mdash; Payment Approval</h2>
+    <button class="btn ghost small" onclick="state.payClass=null;render()">Change Class</button>
+  </div>
   <div class="row">
     <textarea id="paidRegs" placeholder="Paste reg. numbers, one per line or comma-separated" rows="3"></textarea>
   </div>
-  <button class="btn primary" onclick="addPaid('${sel || ''}')">Mark as Paid</button>
+  <button class="btn primary" onclick="addPaid('${esc(sel)}')">Mark as Paid</button>
   <table class="tbl">
     <tr><th>Reg. No.</th><th>Name</th><th></th></tr>
     ${paidList.map(r => {
       const stu = DB.students.find(s => s.reg === r);
-      return `<tr><td>${esc(r)}</td><td>${esc(stu ? stu.name : '(unknown)')}</td><td><button class="btn danger small" onclick="removePaid('${sel}', '${esc(r)}')">Remove</button></td></tr>`;
-    }).join('')}
+      return `<tr><td>${esc(r)}</td><td>${esc(stu ? stu.name : '(unknown)')}</td><td><button class="btn danger small" onclick="removePaid('${esc(sel)}', '${esc(r)}')">Remove</button></td></tr>`;
+    }).join('') || `<tr><td colspan="3">No one marked paid yet for ${esc(sel)}.</td></tr>`}
   </table>`;
 }
-function setPaySubject(v) { state.paySubject = v; render(); }
-function addPaid(subjectId) {
-  if (!subjectId) { flash('Add a subject first.', 'error'); return; }
+function setPayClass(v) { state.payClass = v; render(); }
+function addPaid(className) {
+  if (!className) { flash('Select a class first.', 'error'); return; }
   const raw = document.getElementById('paidRegs').value;
   const regs = raw.split(/[\n,]/).map(x => x.trim()).filter(Boolean);
-  if (!DB.paid[subjectId]) DB.paid[subjectId] = [];
-  regs.forEach(r => { if (!DB.paid[subjectId].includes(r)) DB.paid[subjectId].push(r); });
+  if (!DB.paid[className]) DB.paid[className] = [];
+  regs.forEach(r => { if (!DB.paid[className].includes(r)) DB.paid[className].push(r); });
   setData('paid', DB.paid).then(() => flash('Payment list updated.', 'success'));
   render();
 }
-function removePaid(subjectId, reg) {
-  DB.paid[subjectId] = (DB.paid[subjectId] || []).filter(r => r !== reg);
+function removePaid(className, reg) {
+  DB.paid[className] = (DB.paid[className] || []).filter(r => r !== reg);
   setData('paid', DB.paid); render();
 }
 
@@ -826,7 +981,7 @@ function mgmtEntrance() {
   <h3 style="margin-top:22px;">3. Register a candidate</h3>
   <div class="row wrap">
     <input id="newCandName" placeholder="Candidate full name"/>
-    <select id="newCandClass">${DB.classes.map(c => `<option>${esc(c)}</option>`).join('')}</select>
+    <select id="newCandClass">${DB.classes.map(c => `<option>${esc(c.name)}</option>`).join('')}</select>
     <button class="btn primary" onclick="registerCandidate()">Register &amp; Generate Candidate No.</button>
   </div>
 
@@ -892,20 +1047,41 @@ function viewEntranceResultAsAdmin(id) {
 }
 
 function mgmtResults() {
+  const bySec = classesBySection();
+  const selClass = state.mgmtResultsClass;
+  if (!selClass) {
+    return `
+    <h2>All Results &mdash; by Class</h2>
+    <p class="hint">Pick a class to see every student's scores across all their subjects.</p>
+    ${SECTIONS.map(sec => (bySec[sec] || []).length ? `
+      <div class="hint" style="margin:10px 0 4px;font-weight:700;">${sec}</div>
+      <div class="pickgrid">
+        ${(bySec[sec] || []).map(cn => `<div class="pickcard" onclick="pickMgmtResultsClass('${esc(cn)}')"><div class="pickcard-title">${esc(cn)}</div></div>`).join('')}
+      </div>` : '').join('') || '<p class="hint">No classes set up yet.</p>'}`;
+  }
+  const students = DB.students.filter(s => s.class === selClass);
+  const subjectsForClass = DB.subjects.filter(s => (s.classes || []).includes(selClass));
   return `
-  <h2>All Student Results</h2>
-  <table class="tbl">
-    <tr><th>Reg</th><th>Name</th><th>Class</th><th></th></tr>
-    ${DB.students.map(s => `
-      <tr><td>${esc(s.reg)}</td><td>${esc(s.name)}</td><td>${esc(s.class)}</td>
-      <td><button class="btn small" onclick="viewResultAsAdmin('${esc(s.reg)}')">View Result</button></td></tr>`).join('')}
+  <div class="row spread">
+    <h2>${esc(selClass)} &mdash; Results</h2>
+    <button class="btn ghost small" onclick="state.mgmtResultsClass=null;render()">Change Class</button>
+  </div>
+  <table class="tbl small">
+    <tr><th>Reg</th><th>Name</th>${subjectsForClass.map(s => `<th>${esc(s.name)}</th>`).join('')}<th></th></tr>
+    ${students.map(s => {
+      const cells = subjectsForClass.map(subj => {
+        const b = subjectBreakdown(s.reg, subj.id);
+        return `<td>${b.complete ? b.total : '-'}</td>`;
+      }).join('');
+      return `<tr><td>${esc(s.reg)}</td><td>${esc(s.name)}</td>${cells}<td><button class="btn small" onclick="viewResultAsAdmin('${esc(s.reg)}')">View Full Result</button></td></tr>`;
+    }).join('') || `<tr><td colspan="99">No students in ${esc(selClass)} yet.</td></tr>`}
   </table>`;
 }
+function pickMgmtResultsClass(cn) { state.mgmtResultsClass = cn; render(); }
 function viewResultAsAdmin(reg) {
   state.resultsReg = reg;
-  state.view = 'results-view';
   state.fromAdmin = true;
-  render();
+  go('results-view');
 }
 
 function mgmtSettings() {
@@ -970,6 +1146,10 @@ function doTeacherLogin() {
   const v = document.getElementById('teachPass').value;
   if (v === DB.teacherPassword) {
     state.teacherAuthed = true;
+    state.teacherSubjectId = null;
+    state.teacherClassId = null;
+    state.teachTab = null;
+    state.questionDraft = null;
     go('teacher');
   } else flash('Incorrect teacher password.', 'error');
 }
@@ -980,40 +1160,79 @@ function viewTeacher() {
     return `
     <h2>Select a Subject</h2>
     <div class="portal-grid">
-      ${DB.subjects.map(s => `<div class="portal-card" onclick="pickTeacherSubject('${s.id}')"><h3>${esc(s.name)}</h3><p>Scheme, questions &amp; marks entry</p></div>`).join('') || '<p>No subjects yet. Ask management to add one.</p>'}
+      ${DB.subjects.map(s => `<div class="portal-card" onclick="pickTeacherSubject('${s.id}')"><h3>${esc(s.name)}</h3><p>${(s.classes || []).length} class(es) offering this subject</p></div>`).join('') || '<p>No subjects yet. Ask management to add one.</p>'}
     </div>`;
   }
   const subj = DB.subjects.find(s => s.id === state.teacherSubjectId);
-  const tab = state.teachTab || 'scheme';
-  const tabs = [['scheme', 'Scheme of Work'], ['bank', 'Question Bank'], ['testq', 'Test Questions (15)'], ['examq', 'Exam Questions (40)'], ['marks', 'Enter 1st Test & Theory Marks']];
-  if (DB.entranceConfig.subjects.includes(subj.id)) tabs.push(['entranceq', `Entrance Exam Questions (${DB.entranceConfig.qCountPerSubject})`]);
-  return `
-  <div class="dash">
+  const hasEntrance = DB.entranceConfig.subjects.includes(subj.id);
+
+  // subject-wide tabs (no class needed)
+  if (!state.teacherClassId) {
+    const bySec = classesBySection(subj.classes || []);
+    return `
     <div class="row spread">
       <h2>${esc(subj.name)}</h2>
       <button class="btn ghost small" onclick="state.teacherSubjectId=null;render()">Change Subject</button>
+    </div>
+    <div class="row wrap">
+      <button class="btn ghost" onclick="state.teachTab='bank'; go('teacher-subjectwide')">Question Bank</button>
+      ${hasEntrance ? `<button class="btn ghost" onclick="state.teachTab='entranceq'; go('teacher-subjectwide')">Entrance Exam Questions</button>` : ''}
+    </div>
+    <h3 style="margin-top:18px;">Select a Class</h3>
+    <p class="hint">Scheme of work, questions, and marks entry are all specific to one class at a time.</p>
+    ${SECTIONS.map(sec => (bySec[sec] || []).length ? `
+      <div class="hint" style="margin:10px 0 4px;font-weight:700;">${sec}</div>
+      <div class="pickgrid">
+        ${(bySec[sec] || []).map(cn => `<div class="pickcard" onclick="pickTeacherClass('${esc(cn)}')"><div class="pickcard-title">${esc(cn)}</div></div>`).join('')}
+      </div>` : '').join('') || '<p class="hint">This subject has no classes assigned yet — ask management to tick some under Subjects.</p>'}`;
+  }
+
+  const tab = state.teachTab || 'scheme';
+  const tabs = [['scheme', 'Scheme of Work'], ['testq', 'Test Questions (15)'], ['examq', 'Exam Questions (40)'], ['marks', 'Marks & CBT Results']];
+  return `
+  <div class="dash">
+    <div class="row spread">
+      <h2>${esc(subj.name)} &mdash; ${esc(state.teacherClassId)}</h2>
+      <button class="btn ghost small" onclick="state.teacherClassId=null;render()">Change Class</button>
     </div>
     <div class="tabbar">${tabs.map(t => `<button class="tabbtn ${tab === t[0] ? 'active' : ''}" onclick="teachTab('${t[0]}')">${t[1]}</button>`).join('')}</div>
     <div class="tabpanel">${teacherPanel(tab, subj)}</div>
   </div>`;
 }
-function pickTeacherSubject(id) { state.teacherSubjectId = id; state.teachTab = 'scheme'; state.questionDraft = null; render(); }
+function pickTeacherSubject(id) { state.teacherSubjectId = id; state.teacherClassId = null; state.teachTab = 'scheme'; state.questionDraft = null; render(); }
+function pickTeacherClass(cn) { state.teacherClassId = cn; state.teachTab = 'scheme'; state.questionDraft = null; render(); }
 function teachTab(t) { state.teachTab = t; state.questionDraft = null; render(); }
 
+/* subject-wide tabs (Question Bank / Entrance Questions) render outside the class-scoped dash */
+function viewTeacherSubjectWide() {
+  if (!state.teacherAuthed || !state.teacherSubjectId) return viewTeacher();
+  const subj = DB.subjects.find(s => s.id === state.teacherSubjectId);
+  const tab = state.teachTab;
+  return `
+  <div class="dash">
+    <div class="row spread">
+      <h2>${esc(subj.name)} &mdash; ${tab === 'bank' ? 'Question Bank' : 'Entrance Exam Questions'}</h2>
+      <button class="btn ghost small" onclick="go('teacher')">Back</button>
+    </div>
+    <div class="tabpanel">${tab === 'bank' ? teacherBank(subj) : teacherQuestions(subj, 'entrance')}</div>
+  </div>`;
+}
+
 function teacherPanel(tab, subj) {
-  if (tab === 'scheme') return teacherScheme(subj);
+  if (tab === 'scheme') return teacherScheme(subj, state.teacherClassId);
   if (tab === 'bank') return teacherBank(subj);
-  if (tab === 'testq') return teacherQuestions(subj, 'test');
-  if (tab === 'examq') return teacherQuestions(subj, 'exam');
+  if (tab === 'testq') return teacherQuestions(subj, 'test', state.teacherClassId);
+  if (tab === 'examq') return teacherQuestions(subj, 'exam', state.teacherClassId);
   if (tab === 'entranceq') return teacherQuestions(subj, 'entrance');
-  if (tab === 'marks') return teacherMarks(subj);
+  if (tab === 'marks') return teacherMarks(subj, state.teacherClassId);
   return '';
 }
 
-function teacherScheme(subj) {
+function teacherScheme(subj, className) {
+  const schemes = subj.schemes || {};
   return `
-  <label>Covered Scheme of Work (used as the basis for CBT questions)</label>
-  <textarea id="schemeText" rows="10" placeholder="Paste or type the topics/scheme of work covered this term...">${esc(subj.scheme || '')}</textarea>
+  <label>Covered Scheme of Work for ${esc(className)} (used as the basis for CBT questions)</label>
+  <textarea id="schemeText" rows="10" placeholder="Paste or type the topics/scheme of work covered this term...">${esc(schemes[className] || '')}</textarea>
   <button class="btn primary" onclick="saveScheme('${subj.id}')">Save Scheme of Work</button>
   <p class="hint">CBT Access Password for students in this subject: <b>${esc(subj.password || '(not set)')}</b> &mdash; students need this plus their reg. number to enter the test/exam.</p>
   <div class="row">
@@ -1023,7 +1242,8 @@ function teacherScheme(subj) {
 }
 function saveScheme(id) {
   const s = DB.subjects.find(x => x.id === id); if (!s) return;
-  s.scheme = document.getElementById('schemeText').value;
+  if (!s.schemes) s.schemes = {};
+  s.schemes[state.teacherClassId] = document.getElementById('schemeText').value;
   setData('subjects', DB.subjects).then(() => flash('Scheme of work saved.', 'success'));
 }
 
@@ -1164,10 +1384,14 @@ function deleteBankItem(subjectId, index) {
   setData('questionBank', DB.questionBank).then(() => { flash('Question deleted.', 'success'); render(); });
 }
 
-function teacherQuestions(subj, kind) {
+function getQList(subj, kind, className) {
+  if (kind === 'entrance') return (DB.questions[subj.id] && DB.questions[subj.id].entrance) || [];
+  return (DB.questions[subj.id] && DB.questions[subj.id][className] && DB.questions[subj.id][className][kind]) || [];
+}
+function teacherQuestions(subj, kind, className) {
   const count = kind === 'test' ? DB.config.testQCount : kind === 'exam' ? DB.config.examQCount : DB.entranceConfig.qCountPerSubject;
-  const draft = (state.questionDraft && state.questionDraft.subjectId === subj.id && state.questionDraft.kind === kind) ? state.questionDraft.items : null;
-  const list = draft || (DB.questions[subj.id] && DB.questions[subj.id][kind]) || [];
+  const draft = (state.questionDraft && state.questionDraft.subjectId === subj.id && state.questionDraft.kind === kind && state.questionDraft.className === (className || null)) ? state.questionDraft.items : null;
+  const list = draft || getQList(subj, kind, className);
   const rows = [];
   for (let i = 0; i < count; i++) {
     const q = list[i] || { q: '', A: '', B: '', C: '', D: '', correct: 'A' };
@@ -1186,21 +1410,31 @@ function teacherQuestions(subj, kind) {
       </select>
     </div>`);
   }
+  const entranceSchemeBox = kind === 'entrance' ? `
+    <label>Scheme of work to base entrance questions on</label>
+    <textarea id="entranceSchemeText" rows="6" placeholder="Paste the topics this entrance exam should be based on...">${esc(subj.entranceScheme || '')}</textarea>
+    <button class="btn" onclick="saveEntranceScheme('${subj.id}')">Save Entrance Scheme</button>` : '';
   return `
-  <div class="row wrap spread">
+  ${entranceSchemeBox}
+  <div class="row wrap spread" style="margin-top:14px;">
     <p class="hint" style="margin:0">Fill in exactly ${count} questions, options A&ndash;D, and mark the correct option.</p>
     <div class="row" style="margin:0">
       <input id="topicFocus_${kind}" placeholder="Focus topics, comma-separated (optional)" style="min-width:220px"/>
-      <button class="btn ghost small" onclick="generateFromBank('${subj.id}','${kind}', ${count})">Generate from Bank</button>
-      <button class="btn ghost small" onclick="aiGenerate('${subj.id}','${kind}', ${count})" ${state.aiBusy ? 'disabled' : ''}>${state.aiBusy ? 'Generating…' : 'Generate from Scheme (AI)'}</button>
+      <button class="btn ghost small" onclick="generateFromBank('${subj.id}','${kind}', ${count}, ${className ? `'${className}'` : 'null'})">Generate from Bank</button>
+      <button class="btn ghost small" onclick="aiGenerate('${subj.id}','${kind}', ${count}, ${className ? `'${className}'` : 'null'})" ${state.aiBusy ? 'disabled' : ''}>${state.aiBusy ? 'Generating…' : 'Generate from Scheme (AI)'}</button>
     </div>
   </div>
   <p class="hint">"Generate from Bank" is free and picks randomly from the Question Bank tab. "Generate from Scheme (AI)" needs Anthropic billing set up on the server. Either way, review the filled-in questions below before saving.</p>
   <p class="hint">Bank currently has <b>${(DB.questionBank[subj.id] || []).length}</b> question(s) saved for this subject (see the Question Bank tab). Need at least ${count} to generate here.</p>
   ${rows.join('')}
-  <button class="btn primary" onclick="saveQuestions('${subj.id}','${kind}', ${count})">Save ${kind === 'test' ? 'Test' : kind === 'exam' ? 'Exam' : 'Entrance Exam'} Questions</button>`;
+  <button class="btn primary" onclick="saveQuestions('${subj.id}','${kind}', ${count}, ${className ? `'${className}'` : 'null'})">Save ${kind === 'test' ? 'Test' : kind === 'exam' ? 'Exam' : 'Entrance Exam'} Questions</button>`;
 }
-function saveQuestions(subjectId, kind, count) {
+function saveEntranceScheme(id) {
+  const s = DB.subjects.find(x => x.id === id); if (!s) return;
+  s.entranceScheme = document.getElementById('entranceSchemeText').value;
+  setData('subjects', DB.subjects).then(() => flash('Entrance scheme saved.', 'success'));
+}
+function saveQuestions(subjectId, kind, count, className) {
   const list = [];
   for (let i = 0; i < count; i++) {
     list.push({
@@ -1213,12 +1447,17 @@ function saveQuestions(subjectId, kind, count) {
     });
   }
   if (!DB.questions[subjectId]) DB.questions[subjectId] = {};
-  DB.questions[subjectId][kind] = list;
+  if (kind === 'entrance') {
+    DB.questions[subjectId].entrance = list;
+  } else {
+    if (!DB.questions[subjectId][className]) DB.questions[subjectId][className] = {};
+    DB.questions[subjectId][className][kind] = list;
+  }
   state.questionDraft = null;
   setData('questions', DB.questions).then(() => flash('Questions saved.', 'success'));
 }
 
-function generateFromBank(subjectId, kind, count) {
+function generateFromBank(subjectId, kind, count, className) {
   const bank = DB.questionBank[subjectId] || [];
   const topicsEl = document.getElementById(`topicFocus_${kind}`);
   const topicsRaw = topicsEl ? topicsEl.value.trim() : '';
@@ -1235,14 +1474,15 @@ function generateFromBank(subjectId, kind, count) {
     return;
   }
   const picked = shuffle(pool).slice(0, count).map(q => ({ q: q.q || '', A: q.A || '', B: q.B || '', C: q.C || '', D: q.D || '', correct: (q.correct || 'A').toUpperCase() }));
-  state.questionDraft = { subjectId, kind, items: picked };
+  state.questionDraft = { subjectId, kind, className: className || null, items: picked };
   flash(`Picked ${count} question(s) from the bank -- review below, then Save.`, 'success');
 }
 
-async function aiGenerate(subjectId, kind, count) {
+async function aiGenerate(subjectId, kind, count, className) {
   const subj = DB.subjects.find(s => s.id === subjectId);
-  if (!subj || !subj.scheme || !subj.scheme.trim()) {
-    flash('Please save a scheme of work for this subject first.', 'error');
+  const schemeText = kind === 'entrance' ? (subj.entranceScheme || '') : ((subj.schemes || {})[className] || '');
+  if (!subj || !schemeText.trim()) {
+    flash(kind === 'entrance' ? 'Please save an entrance scheme of work first.' : 'Please save a scheme of work for this class first.', 'error');
     return;
   }
   const topicsEl = document.getElementById(`topicFocus_${kind}`);
@@ -1252,7 +1492,7 @@ async function aiGenerate(subjectId, kind, count) {
     const response = await fetch("/api/generate-questions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ subjectName: subj.name, scheme: subj.scheme, kind, count, topics })
+      body: JSON.stringify({ subjectName: subj.name, scheme: schemeText, kind, count, topics, className })
     });
     const data = await response.json();
     if (data.error) throw new Error(data.error);
@@ -1263,7 +1503,7 @@ async function aiGenerate(subjectId, kind, count) {
       const q = arr[i] || { q: '', A: '', B: '', C: '', D: '', correct: 'A' };
       items.push({ q: q.q || '', A: q.A || '', B: q.B || '', C: q.C || '', D: q.D || '', correct: (q.correct || 'A').toUpperCase() });
     }
-    state.questionDraft = { subjectId, kind, items };
+    state.questionDraft = { subjectId, kind, className: className || null, items };
     flash('Draft questions generated — review and edit, then Save.', 'success');
   } catch (e) {
     console.error(e);
@@ -1272,27 +1512,32 @@ async function aiGenerate(subjectId, kind, count) {
   state.aiBusy = false; render();
 }
 
-function teacherMarks(subj) {
+function teacherMarks(subj, className) {
   const manual2 = secondTestMode(subj.id) === 'manual';
+  const students = DB.students.filter(s => s.class === className);
   return `
   ${manual2 ? `<p class="hint">This subject's 2nd Test is set to <b>manual entry</b> (Management &rarr; Subjects). Enter it below alongside 1st Test and Theory.</p>` : ''}
   <table class="tbl small">
-    <tr><th>Reg</th><th>Name</th><th>Class</th><th>1st Test (/${DB.config.firstTestMax})</th>${manual2 ? `<th>2nd Test (/${DB.config.cbtTestMax})</th>` : ''}<th>Theory (/${DB.config.theoryMax})</th></tr>
-    ${DB.students.map(s => {
+    <tr><th>Reg</th><th>Name</th><th>1st Test (/${DB.config.firstTestMax})</th><th>${manual2 ? `2nd Test (/${DB.config.cbtTestMax})` : `CBT Test (/${DB.config.cbtTestMax})`}</th><th>CBT Exam (/${DB.config.cbtExamMax})</th><th>Theory (/${DB.config.theoryMax})</th></tr>
+    ${students.map(s => {
       const m = getManual(s.reg, subj.id);
+      const a = getAttempt(s.reg, subj.id);
       return `<tr>
-        <td>${esc(s.reg)}</td><td>${esc(s.name)}</td><td>${esc(s.class)}</td>
+        <td>${esc(s.reg)}</td><td>${esc(s.name)}</td>
         <td><input type="number" min="0" max="${DB.config.firstTestMax}" style="width:70px" id="t1_${esc(s.reg)}" value="${m.test1 != null ? m.test1 : ''}"/></td>
-        ${manual2 ? `<td><input type="number" min="0" max="${DB.config.cbtTestMax}" style="width:70px" id="t2_${esc(s.reg)}" value="${m.test2 != null ? m.test2 : ''}"/></td>` : ''}
+        <td>${manual2
+          ? `<input type="number" min="0" max="${DB.config.cbtTestMax}" style="width:70px" id="t2_${esc(s.reg)}" value="${m.test2 != null ? m.test2 : ''}"/>`
+          : `<span class="${a.testDone ? 'ok' : 'hint'}">${a.testDone ? a.testScore : 'Not yet'}</span>`}</td>
+        <td><span class="${a.examDone ? 'ok' : 'hint'}">${a.examDone ? a.examScore : 'Not yet'}</span></td>
         <td><input type="number" min="0" max="${DB.config.theoryMax}" style="width:70px" id="th_${esc(s.reg)}" value="${m.theory != null ? m.theory : ''}"/></td>
       </tr>`;
-    }).join('')}
+    }).join('') || `<tr><td colspan="6">No students in ${esc(className)} yet.</td></tr>`}
   </table>
-  <button class="btn primary" onclick="saveMarks('${subj.id}')">Save Marks</button>`;
+  <button class="btn primary" onclick="saveMarks('${subj.id}', '${esc(className)}')">Save Marks</button>`;
 }
-function saveMarks(subjectId) {
+function saveMarks(subjectId, className) {
   const manual2 = secondTestMode(subjectId) === 'manual';
-  DB.students.forEach(s => {
+  DB.students.filter(s => s.class === className).forEach(s => {
     const t1raw = document.getElementById('t1_' + s.reg).value;
     const t2raw = manual2 ? document.getElementById('t2_' + s.reg).value : '';
     const thraw = document.getElementById('th_' + s.reg).value;
@@ -1308,15 +1553,38 @@ function saveMarks(subjectId) {
 
 /* ===================== STUDENT ===================== */
 function viewStudentLogin() {
-  const selSubj = state.stuSelectedSubject || (DB.subjects[0] && DB.subjects[0].id);
+  const selClass = state.stuSelectedClass;
+  const bySec = classesBySection();
+  if (!selClass) {
+    return `
+    <div class="stepbox">
+      <h2>Step 1 &mdash; Select Your Class</h2>
+      <div class="stepbox-body">
+        ${SECTIONS.map(sec => (bySec[sec] || []).length ? `
+          <div class="hint" style="margin:8px 0 4px;font-weight:700;">${sec}</div>
+          <div class="pickgrid">
+            ${(bySec[sec] || []).map(cn => `<div class="pickcard" onclick="pickStuClass('${esc(cn)}')"><div class="pickcard-title">${esc(cn)}</div></div>`).join('')}
+          </div>` : '').join('') || '<p class="hint">No classes set up yet — contact management.</p>'}
+      </div>
+    </div>`;
+  }
+  const subjectsForClass = DB.subjects.filter(s => (s.classes || []).includes(selClass));
+  const selSubj = state.stuSelectedSubject && subjectsForClass.find(s => s.id === state.stuSelectedSubject) ? state.stuSelectedSubject : (subjectsForClass[0] && subjectsForClass[0].id);
   return `
+  <div class="stepbox">
+    <div class="row spread">
+      <h2 style="border:none;padding:0;margin:0;">${esc(selClass)}</h2>
+      <button class="btn ghost small" onclick="state.stuSelectedClass=null;render()">Change Class</button>
+    </div>
+  </div>
+
   <div class="stepbox">
     <h2>Step 1 &mdash; Select Your Subject</h2>
     <div class="stepbox-body pickgrid">
-      ${DB.subjects.map(s => `
+      ${subjectsForClass.map(s => `
         <div class="pickcard ${selSubj === s.id ? 'sel' : ''}" onclick="pickStuSubject('${s.id}')">
           <div class="pickcard-title">${esc(s.name)}</div>
-        </div>`).join('') || '<p class="hint">No subjects available yet — contact management.</p>'}
+        </div>`).join('') || '<p class="hint">No subjects offered for this class yet — contact management.</p>'}
     </div>
   </div>
 
@@ -1333,7 +1601,7 @@ function viewStudentLogin() {
     <h2>Examination Instructions</h2>
     <div class="stepbox-body">
       <ol style="margin:0;padding-left:20px;line-height:1.9;">
-        <li>Select your <b>subject</b> above before proceeding.</li>
+        <li>Select your <b>class</b> and <b>subject</b> above before proceeding.</li>
         <li>Enter your <b>registration number</b> and <b>subject access password</b> correctly.</li>
         <li>The Test is ${DB.config.testQCount} questions in ${DB.config.testDurationMin} minutes; the Examination is ${DB.config.examQCount} questions in ${DB.config.examDurationMin} minutes.</li>
         <li>Any form of malpractice is strictly prohibited and may lead to cancellation of your script.</li>
@@ -1342,13 +1610,15 @@ function viewStudentLogin() {
     </div>
   </div>`;
 }
+function pickStuClass(cn) { state.stuSelectedClass = cn; state.stuSelectedSubject = null; render(); }
 function pickStuSubject(id) { state.stuSelectedSubject = id; render(); }
 function doStudentLogin() {
   const reg = document.getElementById('stuReg').value.trim();
-  const subjectId = state.stuSelectedSubject || (DB.subjects[0] && DB.subjects[0].id);
+  const subjectId = state.stuSelectedSubject;
   const pass = document.getElementById('stuSubjPass').value;
   const stu = DB.students.find(s => s.reg === reg);
   if (!stu) { flash('Reg. number not found. Contact management.', 'error'); return; }
+  if (stu.class !== state.stuSelectedClass) { flash('This reg. number belongs to a different class.', 'error'); return; }
   const subj = DB.subjects.find(s => s.id === subjectId);
   if (!subj) { flash('Select a subject.', 'error'); return; }
   if (!subj.password || pass !== subj.password) { flash('Incorrect subject access password.', 'error'); return; }
@@ -1361,11 +1631,12 @@ function doStudentLogin() {
 function viewStudentDash() {
   if (!state.studentReg) return viewStudentLogin();
   const subj = DB.subjects.find(s => s.id === state.studentSubjectId);
+  const className = state.studentClass;
   const a = getAttempt(state.studentReg, subj.id);
-  const paidOk = (DB.paid[subj.id] || []).includes(state.studentReg);
+  const paidOk = (DB.paid[className] || []).includes(state.studentReg);
   const testAvailable = !a.testDone || a.approvedRetake;
   const examAvailable = (!a.examDone || a.approvedRetake);
-  const qBank = DB.questions[subj.id] || {};
+  const qBank = (DB.questions[subj.id] && DB.questions[subj.id][className]) || {};
   const testReady = (qBank.test || []).length >= DB.config.testQCount;
   const examReady = (qBank.exam || []).length >= DB.config.examQCount;
   const manual2 = secondTestMode(subj.id) === 'manual';
@@ -1407,7 +1678,7 @@ function viewStudentDash() {
 
 function startRun(mode) {
   const subj = DB.subjects.find(s => s.id === state.studentSubjectId);
-  const bank = (DB.questions[subj.id] || {})[mode] || [];
+  const bank = ((DB.questions[subj.id] || {})[state.studentClass] || {})[mode] || [];
   const count = mode === 'test' ? DB.config.testQCount : DB.config.examQCount;
   const durMin = mode === 'test' ? DB.config.testDurationMin : DB.config.examDurationMin;
   if (bank.length < count) { flash('Questions are not fully set up yet.', 'error'); return; }
@@ -1444,350 +1715,4 @@ function shuffleOptions(q) {
 function tickTimer() {
   state.runSecondsLeft--;
   if (state.runSecondsLeft <= 0) {
-    clearInterval(state.runTimer);
-    submitRun(true);
-    return;
-  }
-  const el = document.getElementById('runTimerDisplay');
-  if (el) el.textContent = fmtTime(state.runSecondsLeft);
-}
-function fmtTime(s) {
-  const m = Math.floor(s / 60), sec = s % 60;
-  return String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
-}
-
-function viewStudentRun() {
-  const subj = DB.subjects.find(s => s.id === state.studentSubjectId);
-  const titleLabel = state.runContext === 'entrance' ? 'Entrance Examination' : (state.runMode === 'test' ? 'Test' : 'Examination');
-  return `
-  <div class="card">
-    <div class="row spread runbar">
-      <h2>${esc(subj.name)} &mdash; ${titleLabel}</h2>
-      <div class="timer" id="runTimerDisplay">${fmtTime(state.runSecondsLeft)}</div>
-    </div>
-    <p class="hint">Answer all questions. Do not switch tabs or windows.</p>
-    ${state.runQuestions.map((q, i) => `
-      <div class="qview">
-        <div class="qview-text"><b>${i + 1}.</b> ${esc(q.q)}</div>
-        <div class="qview-opts">
-          ${['A', 'B', 'C', 'D'].map(o => `
-            <label class="opt ${state.runAnswers[i] === o ? 'sel' : ''}">
-              <input type="radio" name="run_${i}" value="${o}" ${state.runAnswers[i] === o ? 'checked' : ''} onchange="setAnswer(${i}, '${o}')"/>
-              <span>${o}. ${esc(q[o])}</span>
-            </label>`).join('')}
-        </div>
-      </div>`).join('')}
-    <button class="btn primary big" onclick="confirmSubmit()">Submit ${titleLabel}</button>
-  </div>`;
-}
-function setAnswer(i, o) { state.runAnswers[i] = o; render(); }
-function confirmSubmit() {
-  const answered = Object.keys(state.runAnswers).length;
-  if (answered < state.runQuestions.length) {
-    if (!confirm(`You have answered ${answered}/${state.runQuestions.length} questions. Submit anyway?`)) return;
-  } else if (!confirm('Submit now? You cannot change your answers afterwards.')) return;
-  clearInterval(state.runTimer);
-  submitRun(false);
-}
-function submitRun(auto) {
-  let score = 0;
-  state.runQuestions.forEach((q, i) => { if (state.runAnswers[i] === q.correct) score++; });
-  const qCount = state.runQuestions.length;
-
-  if (state.runContext === 'entrance') {
-    const candidateId = state.entranceCandidateId;
-    const subjectId = state.studentSubjectId;
-    if (!DB.entranceAttempts[candidateId]) DB.entranceAttempts[candidateId] = {};
-    DB.entranceAttempts[candidateId][subjectId] = { score, max: qCount, done: true, at: new Date().toISOString() };
-    setData('entranceAttempts', DB.entranceAttempts).then(() => {
-      flash((auto ? 'Time up — ' : '') + 'Submitted. Score recorded.', 'success');
-      state.runContext = 'student';
-      go('entrance-dash');
-    });
-    return;
-  }
-
-  const maxMarks = state.runMode === 'test' ? DB.config.cbtTestMax : DB.config.cbtExamMax;
-  const scaled = Math.round((score / qCount) * maxMarks * 10) / 10;
-
-  const reg = state.studentReg, subjectId = state.studentSubjectId;
-  if (!DB.attempts[reg]) DB.attempts[reg] = {};
-  if (!DB.attempts[reg][subjectId]) DB.attempts[reg][subjectId] = {};
-  const a = DB.attempts[reg][subjectId];
-  if (state.runMode === 'test') { a.testDone = true; a.testScore = scaled; a.testAt = new Date().toISOString(); }
-  else { a.examDone = true; a.examScore = scaled; a.examAt = new Date().toISOString(); }
-  a.approvedRetake = false;
-  setData('attempts', DB.attempts).then(() => {
-    flash((auto ? 'Time up — ' : '') + 'Submitted. Score recorded.', 'success');
-    go('student-dash');
-  });
-}
-
-/* ---------- anti-malpractice: warn on tab switch during a run ---------- */
-document.addEventListener('visibilitychange', function () {
-  if (document.hidden && state.view === 'student-run') {
-    state.warnCount++;
-    flash('Warning: leaving the test/exam window is recorded (' + state.warnCount + ').', 'error');
-  }
-});
-
-/* ===================== RESULTS PORTAL ===================== */
-function viewResultsHome() {
-  return `
-  <div class="card narrow">
-    <h2>Check Your Result</h2>
-    <label>Registration Number</label>
-    <input id="resReg"/>
-    <button class="btn primary" onclick="requestResultPassword()">Get Result Password</button>
-    <div id="resPassArea"></div>
-    <hr/>
-    <label>Enter Result Password</label>
-    <input id="resPassInput" placeholder="e.g. oecmsresult1234"/>
-    <button class="btn primary" onclick="loginResult()">View Result</button>
-  </div>`;
-}
-async function requestResultPassword() {
-  const reg = document.getElementById('resReg').value.trim();
-  if (!reg) return;
-  const stu = DB.students.find(s => s.reg === reg);
-  if (!stu) { flash('Reg. number not found.', 'error'); return; }
-  const pass = 'oecmsresult' + Math.floor(1000 + Math.random() * 9000);
-  DB.resultAuth[reg] = { password: pass, usesLeft: DB.config.passwordUses };
-  await setData('resultAuth', DB.resultAuth);
-  state.resultsReg = reg;
-  document.getElementById('resPassArea').innerHTML =
-    `<p class="ok">Your password: <b>${pass}</b> (valid for ${DB.config.passwordUses} uses). Enter it below.</p>`;
-}
-function loginResult() {
-  const reg = state.resultsReg || document.getElementById('resReg').value.trim();
-  const pass = document.getElementById('resPassInput').value.trim();
-  const rec = DB.resultAuth[reg];
-  if (!rec || rec.password !== pass) { flash('Incorrect result password.', 'error'); return; }
-  if (rec.usesLeft <= 0) { flash('This password has been used up. Please generate a new one.', 'error'); return; }
-  rec.usesLeft--;
-  setData('resultAuth', DB.resultAuth);
-  state.resultsReg = reg;
-  state.fromAdmin = false;
-  go('results-view');
-}
-
-function viewResultsView() {
-  const reg = state.resultsReg;
-  const stu = DB.students.find(s => s.reg === reg);
-  if (!stu) return `<p>Student not found.</p>`;
-  const subs = studentSubjects(reg);
-  const rows = subs.map(id => {
-    const subj = DB.subjects.find(s => s.id === id);
-    const b = subjectBreakdown(reg, id);
-    const rank = subjectBreakdown(reg, id).complete ? subjectRank(reg, id, stu.class) : { position: null, outOf: null };
-    return { subj, b, rank };
-  }).filter(r => r.subj);
-  const grandTotal = rows.reduce((s, r) => s + r.b.total, 0);
-  const grandMax = rows.reduce((s, r) => s + r.b.max, 0);
-  const avg = rows.length ? Math.round((grandTotal / grandMax) * 1000) / 10 : 0;
-  const overall = overallRank(reg, stu.class);
-
-  return `
-  <div class="result-sheet" id="resultSheet">
-    <img src="${LOGO}" class="watermark" alt=""/>
-    <div class="result-header">
-      <img src="${LOGO}" class="result-logo" alt="logo"/>
-      <div>
-        <div class="result-school">${esc(DB.config.schoolName)}</div>
-        <div class="result-addr">${esc(DB.config.address)}</div>
-        <div class="result-addr">${esc(DB.config.email)}${DB.config.phone ? ' | ' + esc(DB.config.phone) : ''}</div>
-      </div>
-    </div>
-    <h3 class="result-title">Continuous Assessment &amp; Examination Result &mdash; ${esc(DB.config.session)}, ${esc(DB.config.term)}</h3>
-    <div class="grid2 result-meta">
-      <div><b>Name:</b> ${esc(stu.name)}</div>
-      <div><b>Reg. No.:</b> ${esc(stu.reg)}</div>
-      <div><b>Class:</b> ${esc(stu.class)}</div>
-      <div><b>Class Position (Overall):</b> ${overall.position ? overall.position + ' of ' + overall.outOf : 'Pending'}</div>
-    </div>
-    <table class="tbl result-tbl">
-      <tr>
-        <th>Subject</th><th>1st Test (${DB.config.firstTestMax})</th><th>CBT Test (${DB.config.cbtTestMax})</th>
-        <th>CBT Exam (${DB.config.cbtExamMax})</th><th>Theory (${DB.config.theoryMax})</th>
-        <th>Total (${subjectMaxTotal()})</th><th>Grade</th><th>Position</th>
-      </tr>
-      ${rows.map(r => `
-        <tr>
-          <td>${esc(r.subj.name)}</td>
-          <td>${r.b.test1 != null ? r.b.test1 : '-'}</td>
-          <td>${r.b.cbtTest != null ? r.b.cbtTest : '-'}</td>
-          <td>${r.b.cbtExam != null ? r.b.cbtExam : '-'}</td>
-          <td>${r.b.theory != null ? r.b.theory : '-'}</td>
-          <td><b>${r.b.complete ? r.b.total : '-'}</b></td>
-          <td>${r.b.grade}</td>
-          <td>${r.rank.position ? r.rank.position + '/' + r.rank.outOf : 'Pending'}</td>
-        </tr>`).join('')}
-    </table>
-    <div class="grid2 result-summary">
-      <div><b>Grand Total:</b> ${grandTotal} / ${grandMax}</div>
-      <div><b>Average:</b> ${avg}%</div>
-    </div>
-    <p class="hint">Grading: A=70-100, B=60-69, C=50-59, D=45-49, E=40-44, F=0-39.</p>
-    <div class="result-footer">Generated via the ${esc(DB.config.shortName)} CBT Portal.</div>
-  </div>
-  <div class="noprint">
-    <button class="btn primary" onclick="window.print()">Print / Save as PDF</button>
-  </div>`;
-}
-
-/* ===================== ENTRANCE EXAMINATION (Candidate side) ===================== */
-function viewEntrancePortal() {
-  return `
-  <div class="hero">
-    <h1>Entrance Examination</h1>
-    <p class="hero-sub">For new intake students / pupils</p>
-  </div>
-  <div class="portal-grid">
-    <div class="portal-card" onclick="go('entrance-login')">
-      <div class="portal-icon">E</div>
-      <h3>Sit the Entrance Exam</h3>
-      <p>Candidates with a Candidate No. can log in here.</p>
-    </div>
-    <div class="portal-card" onclick="go('entrance-result-login')">
-      <div class="portal-icon">R</div>
-      <h3>Check Entrance Result</h3>
-      <p>See your score using your Candidate No.</p>
-    </div>
-  </div>`;
-}
-function viewEntranceLogin() {
-  return `
-  <div class="card narrow">
-    <h2>Candidate Login</h2>
-    <label>Candidate Number</label>
-    <input id="entCandId" placeholder="e.g. ENT-4821"/>
-    <label>Candidate Access Password</label>
-    <input id="entCandPass" type="password"/>
-    <button class="btn primary" onclick="doEntranceLogin()">Continue</button>
-  </div>`;
-}
-function doEntranceLogin() {
-  const id = document.getElementById('entCandId').value.trim().toUpperCase();
-  const pass = document.getElementById('entCandPass').value;
-  const cand = DB.entranceCandidates.find(c => c.id === id);
-  if (!cand) { flash('Candidate number not found. Contact management.', 'error'); return; }
-  if (pass !== DB.entranceConfig.password) { flash('Incorrect access password.', 'error'); return; }
-  state.entranceCandidateId = id;
-  go('entrance-dash');
-}
-function viewEntranceDash() {
-  const cand = DB.entranceCandidates.find(c => c.id === state.entranceCandidateId);
-  if (!cand) return viewEntranceLogin();
-  const ec = DB.entranceConfig;
-  const att = DB.entranceAttempts[cand.id] || {};
-  return `
-  <div class="card">
-    <h2>Welcome, ${esc(cand.name)}</h2>
-    <p>Candidate No.: <b>${esc(cand.id)}</b> &middot; Applying for: ${esc(cand.appliedClass)}</p>
-    <div class="noticebox">
-      <b>Examination Malpractice Notice:</b> Any form of malpractice is strictly prohibited. Use your time wisely — each subject submits automatically when its timer reaches zero.
-    </div>
-    <div class="grid2">
-      ${ec.subjects.map(id => {
-        const s = DB.subjects.find(x => x.id === id);
-        if (!s) return '';
-        const bank = (DB.questions[id] && DB.questions[id].entrance) || [];
-        const ready = bank.length >= ec.qCountPerSubject;
-        const done = att[id] && att[id].done;
-        return `
-        <div class="taskcard">
-          <h3>${esc(s.name)}</h3>
-          <p>${ec.qCountPerSubject} questions &middot; ${ec.durationMin} minutes</p>
-          ${done ? `<p class="ok">Completed. Score: ${att[id].score}/${att[id].max}</p>` : ''}
-          <button class="btn primary" ${(!ready || done) ? 'disabled' : ''} onclick="startEntranceRun('${id}')">
-            ${!ready ? 'Not yet available' : (done ? 'Already Completed' : 'Start')}
-          </button>
-        </div>`;
-      }).join('') || '<p class="hint">No subjects configured yet.</p>'}
-    </div>
-    <button class="btn ghost" onclick="state.entranceCandidateId=null; go('entrance-portal')">Log Out</button>
-  </div>`;
-}
-function startEntranceRun(subjectId) {
-  const bank = (DB.questions[subjectId] && DB.questions[subjectId].entrance) || [];
-  const count = DB.entranceConfig.qCountPerSubject;
-  const durMin = DB.entranceConfig.durationMin;
-  if (bank.length < count) { flash('Questions are not fully set up yet.', 'error'); return; }
-  state.runContext = 'entrance';
-  state.studentSubjectId = subjectId;
-  state.runMode = 'exam';
-  state.runQuestions = shuffle(bank.slice(0, count).map((q, i) => Object.assign({ idx: i }, q))).map(shuffleOptions);
-  state.runAnswers = {};
-  state.runSecondsLeft = durMin * 60;
-  state.warnCount = 0;
-  go('student-run');
-  state.runTimer = setInterval(tickTimer, 1000);
-}
-function viewEntranceResultLogin() {
-  return `
-  <div class="card narrow">
-    <h2>Check Entrance Result</h2>
-    <label>Candidate Number</label>
-    <input id="entResultId" placeholder="e.g. ENT-4821"/>
-    <button class="btn primary" onclick="doEntranceResultLogin()">View Result</button>
-  </div>`;
-}
-function doEntranceResultLogin() {
-  const id = document.getElementById('entResultId').value.trim().toUpperCase();
-  const cand = DB.entranceCandidates.find(c => c.id === id);
-  if (!cand) { flash('Candidate number not found.', 'error'); return; }
-  state.entranceCandidateId = id;
-  state.fromAdmin = false;
-  go('entrance-result-view');
-}
-function viewEntranceResultView() {
-  const cand = DB.entranceCandidates.find(c => c.id === state.entranceCandidateId);
-  if (!cand) return `<p>Candidate not found.</p>`;
-  const ec = DB.entranceConfig;
-  const att = DB.entranceAttempts[cand.id] || {};
-  let total = 0, max = 0;
-  const rows = ec.subjects.map(id => {
-    const s = DB.subjects.find(x => x.id === id);
-    if (!s) return null;
-    const a = att[id];
-    if (a) { total += a.score; max += a.max; }
-    return { name: s.name, a };
-  }).filter(Boolean);
-  return `
-  <div class="result-sheet">
-    <img src="${LOGO}" class="watermark" alt=""/>
-    <div class="result-header">
-      <img src="${LOGO}" class="result-logo" alt="logo"/>
-      <div>
-        <div class="result-school">${esc(DB.config.schoolName)}</div>
-        <div class="result-addr">${esc(DB.config.address)}</div>
-        <div class="result-addr">${esc(DB.config.email)}${DB.config.phone ? ' | ' + esc(DB.config.phone) : ''}</div>
-      </div>
-    </div>
-    <h3 class="result-title">Entrance Examination Result &mdash; ${esc(DB.config.session)}</h3>
-    <div class="grid2 result-meta">
-      <div><b>Name:</b> ${esc(cand.name)}</div>
-      <div><b>Candidate No.:</b> ${esc(cand.id)}</div>
-      <div><b>Applying For:</b> ${esc(cand.appliedClass)}</div>
-    </div>
-    <table class="tbl result-tbl">
-      <tr><th>Subject</th><th>Score</th></tr>
-      ${rows.map(r => `<tr><td>${esc(r.name)}</td><td>${r.a ? r.a.score + ' / ' + r.a.max : 'Pending'}</td></tr>`).join('')}
-    </table>
-    <div class="grid2 result-summary">
-      <div><b>Total:</b> ${max ? total + ' / ' + max : 'Pending'}</div>
-    </div>
-    <div class="result-footer">Generated via the ${esc(DB.config.shortName)} CBT Portal.</div>
-  </div>
-  <div class="noprint">
-    <button class="btn primary" onclick="window.print()">Print / Save as PDF</button>
-  </div>`;
-}
-
-/* ---------- boot ---------- */
-window.__afterRender = null;
-boot();
-
-</script>
-</body>
-</html>
+    clearInterval(state.
