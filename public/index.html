@@ -322,20 +322,43 @@ let state = {
 
 /* ---------- boot ---------- */
 async function boot() {
-  DB.config = await getData('config', DEFAULT_CONFIG);
-  DB.subjects = await getData('subjects', []);
-  DB.classes = await getData('classes', DEFAULT_CLASSES.slice());
-  DB.students = await getData('students', []);
-  DB.paid = await getData('paid', {});
-  DB.questions = await getData('questions', {});
-  DB.questionBank = await getData('questionBank', {});
-  DB.teacherPassword = await getData('teacherPassword', 'oecms-teacher-2026');
-  DB.attempts = await getData('attempts', {});
-  DB.manualScores = await getData('manualScores', {});
-  DB.resultAuth = await getData('resultAuth', {});
-  DB.entranceConfig = await getData('entranceConfig', { subjects: [], qCountPerSubject: 15, durationMin: 20, password: 'oecms-entrance-2026' });
-  DB.entranceCandidates = await getData('entranceCandidates', []);
-  DB.entranceAttempts = await getData('entranceAttempts', {});
+  const appEl = document.getElementById('app');
+  if (appEl) appEl.innerHTML = `<div style="padding:60px 20px;text-align:center;color:#b9c2d6;font-size:1.1rem;">Loading OECMS CBT Portal…</div>`;
+
+  const [
+    config, subjects, classes, students, paid, questions, questionBank,
+    teacherPassword, attempts, manualScores, resultAuth,
+    entranceConfig, entranceCandidates, entranceAttempts
+  ] = await Promise.all([
+    getData('config', DEFAULT_CONFIG),
+    getData('subjects', []),
+    getData('classes', DEFAULT_CLASSES.slice()),
+    getData('students', []),
+    getData('paid', {}),
+    getData('questions', {}),
+    getData('questionBank', {}),
+    getData('teacherPassword', 'oecms-teacher-2026'),
+    getData('attempts', {}),
+    getData('manualScores', {}),
+    getData('resultAuth', {}),
+    getData('entranceConfig', { subjects: [], qCountPerSubject: 15, durationMin: 20, password: 'oecms-entrance-2026' }),
+    getData('entranceCandidates', []),
+    getData('entranceAttempts', {})
+  ]);
+  DB.config = config;
+  DB.subjects = subjects;
+  DB.classes = classes;
+  DB.students = students;
+  DB.paid = paid;
+  DB.questions = questions;
+  DB.questionBank = questionBank;
+  DB.teacherPassword = teacherPassword;
+  DB.attempts = attempts;
+  DB.manualScores = manualScores;
+  DB.resultAuth = resultAuth;
+  DB.entranceConfig = entranceConfig;
+  DB.entranceCandidates = entranceCandidates;
+  DB.entranceAttempts = entranceAttempts;
   migrateOldData();
   render();
 }
@@ -1694,24 +1717,4 @@ function startRun(mode) {
   go('student-run');
   state.runTimer = setInterval(tickTimer, 1000);
 }
-function shuffle(arr) {
-  const a = arr.slice();
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-function shuffleOptions(q) {
-  const letters = ['A', 'B', 'C', 'D'];
-  const pairs = shuffle(letters.map(l => ({ text: q[l], isCorrect: l === q.correct })));
-  const out = Object.assign({}, q);
-  pairs.forEach((p, i) => {
-    out[letters[i]] = p.text;
-    if (p.isCorrect) out.correct = letters[i];
-  });
-  return out;
-}
-function tickTimer() {
-  state.runSecondsLeft--;
-  if (state.run
+function 
