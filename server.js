@@ -121,6 +121,19 @@ Respond with ONLY a JSON array (no markdown fences, no commentary), where each i
 app.get('/healthz', (req, res) => res.json({ ok: true, dbConnected: mongoose.connection.readyState === 1 }));
 
 /* fallback to the SPA for any other route */
+app.get('/test', (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.send(`<!DOCTYPE html>
+<html><head><title>Test Page</title></head>
+<body style="background:#0a1730;color:#fff;font-family:sans-serif;font-size:24px;padding:40px;">
+  <p id="result">If you see ONLY this line, JavaScript did NOT run.</p>
+  <script>
+    document.getElementById('result').innerHTML =
+      '<span style="color:#7CFC00;">SUCCESS — JavaScript ran correctly at ' + new Date().toString() + '</span>';
+  </script>
+</body></html>`);
+});
+
 app.get('*', (req, res) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
