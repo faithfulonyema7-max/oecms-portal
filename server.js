@@ -121,6 +121,30 @@ Respond with ONLY a JSON array (no markdown fences, no commentary), where each i
 app.get('/healthz', (req, res) => res.json({ ok: true, dbConnected: mongoose.connection.readyState === 1 }));
 
 /* fallback to the SPA for any other route */
+app.get('/checksize', (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.send(`<!DOCTYPE html>
+<html><head><title>Size Check</title></head>
+<body style="background:#0a1730;color:#fff;font-family:sans-serif;font-size:20px;padding:40px;line-height:1.8;">
+  <p id="result">Checking what your browser actually received...</p>
+  <script>
+    fetch('/', { cache: 'no-store' })
+      .then(r => r.text())
+      .then(t => {
+        document.getElementById('result').innerHTML =
+          'Your browser received <span style="color:#7CFC00;font-weight:bold;">' + t.length + '</span> characters.<br><br>' +
+          'It should be somewhere around <b>150,000</b> characters.<br><br>' +
+          (t.length > 100000
+            ? '<span style="color:#7CFC00;">This looks like the FULL file arrived intact.</span>'
+            : '<span style="color:#ff6b6b;">This is much SMALLER than expected — the file is being cut short somewhere between the server and your browser.</span>');
+      })
+      .catch(e => {
+        document.getElementById('result').innerHTML = '<span style="color:#ff6b6b;">Fetch failed: ' + e.message + '</span>';
+      });
+  </script>
+</body></html>`);
+});
+
 app.get('/test', (req, res) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.send(`<!DOCTYPE html>
